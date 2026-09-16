@@ -1,0 +1,7 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Mac/Windows system files
+.DS_Store
+Thumbs.db
