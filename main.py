@@ -1,5 +1,6 @@
 import pygame
 import sys
+import os
 from game_logic import Skill, Weapon, Player, Enemy
 
 # Initialize Pygame
@@ -20,8 +21,11 @@ BUTTON_HOVER_COLOR = (100, 100, 120)
 END_TURN_COLOR = (150, 40, 40)
 END_TURN_HOVER = (200, 50, 50)
 TEXT_COLOR = (255, 255, 255)
-ENEMY_TEXT_COLOR = (255, 100, 100)
 INTENT_TEXT_COLOR = (255, 200, 100)
+
+# Character Colors (Placeholder Sprites)
+HERO_COLOR = (50, 150, 255)   
+GOBLIN_COLOR = (50, 200, 50)  
 
 # Fonts
 font_large = pygame.font.SysFont("Arial", 28, bold=True)
@@ -32,7 +36,24 @@ def draw_text(text, font, text_col, x, y):
     img = font.render(text, True, text_col)
     screen.blit(img, (x, y))
 
+def draw_health_bar(surface, x, y, current_hp, max_hp, width=150, height=20):
+    ratio = max(0, current_hp / max_hp)
+    pygame.draw.rect(surface, (100, 30, 30), (x, y, width, height))           
+    pygame.draw.rect(surface, (40, 180, 40), (x, y, width * ratio, height))   
+    pygame.draw.rect(surface, (255, 255, 255), (x, y, width, height), 2)      
+
 def main():
+    # --- LOAD BACKGROUND IMAGE ---
+   # --- LOAD BACKGROUND IMAGE ---
+    bg_image_path = "bcgpc.png"  # <--- Change this line
+    if os.path.exists(bg_image_path):
+        bg_image = pygame.image.load(bg_image_path).convert()
+        bg_image = pygame.transform.scale(bg_image, (WIDTH, HEIGHT)) # Stretches to fit screen
+    else:
+        print(f"Warning: '{bg_image_path}' not found. Using solid color fallback.")
+        bg_image = None
+    # -----------------------------
+
     # --- GAME LOGIC SETUP ---
     slash = Skill(name="Slash", energy_cost=1, damage=8, description="A basic blade attack.")
     parry = Skill(name="Parry", energy_cost=1, block=6, description="Raise guard to gain Block.")
@@ -48,11 +69,10 @@ def main():
 
     running = True
     
-    # Define UI layout variables
+    # UI Layout Variables
     ui_panel_height = 200
     ui_panel_rect = pygame.Rect(0, HEIGHT - ui_panel_height, WIDTH, ui_panel_height)
     
-    # Define 4 Skill Buttons
     button_width, button_height = 200, 120
     button_spacing = 40
     start_x = (WIDTH - (4 * button_width + 3 * button_spacing)) // 2 
@@ -63,8 +83,11 @@ def main():
         rect = pygame.Rect(start_x + i * (button_width + button_spacing), button_y, button_width, button_height)
         buttons.append({"rect": rect, "skill": skill})
 
-    # Define End Turn Button (Positioned on the right, above the UI panel)
     end_turn_rect = pygame.Rect(WIDTH - 220, HEIGHT - ui_panel_height - 70, 180, 50)
+
+    # Character Sprite Positions
+    hero_rect = pygame.Rect(200, 250, 120, 200)
+    goblin_rect = pygame.Rect(WIDTH - 320, 250, 140, 200)
 
     while running:
         mouse_pos = pygame.mouse.get_pos()
@@ -74,43 +97,45 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             
-            # Detect Mouse Clicks
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1: 
-                    # Check Skill Button Clicks
-                    if hero.current_hp > 0 and goblin.current_hp > 0:
-                        for btn in buttons:
-                            if btn["rect"].collidepoint(mouse_pos):
-                                btn["skill"].execute(hero, goblin)
-                                if goblin.current_hp <= 0:
-                                    print(f"{goblin.name} was defeated!")
-                    
-                    # Check End Turn Click
-                    if end_turn_rect.collidepoint(mouse_pos) and goblin.current_hp > 0 and hero.current_hp > 0:
-                        print("--- ENEMY TURN ---")
-                        goblin.execute_intent(hero) # Enemy does its action
-                        hero.reset_turn()           # Player gets Energy back, Block resets
-                        if hero.current_hp > 0:
-                            goblin.decide_intent()  # Enemy rolls a new intent for next turn
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1: 
+                # Skill Buttons
+                if hero.current_hp > 0 and goblin.current_hp > 0:
+                    for btn in buttons:
+                        if btn["rect"].collidepoint(mouse_pos) and hero.energy >= btn["skill"].energy_cost:
+                            btn["skill"].execute(hero, goblin)
+                
+                # End Turn Button
+                if end_turn_rect.collidepoint(mouse_pos) and goblin.current_hp > 0 and hero.current_hp > 0:
+                    goblin.execute_intent(hero)
+                    hero.reset_turn()
+                    if hero.current_hp > 0:
+                        goblin.decide_intent()
                 
         # 2. Draw Background
-        screen.fill(BACKGROUND_COLOR)
+        if bg_image:
+            screen.blit(bg_image, (0, 0)) # Draws the image starting at the top-left corner
+        else:
+            screen.fill(BACKGROUND_COLOR)
         
-        # 3. Draw Game State (HUD)
-        # Player Stats
+        # 3. Draw Characters & Health Bars
         if hero.current_hp > 0:
-            draw_text(f"{hero.name} (HP: {hero.current_hp}/{hero.max_hp})", font_large, TEXT_COLOR, 50, 50)
-            draw_text(f"Energy: {hero.energy}/{hero.max_energy}   Block: {hero.block}", font_medium, TEXT_COLOR, 50, 90)
+            pygame.draw.rect(screen, HERO_COLOR, hero_rect, border_radius=15)
+            draw_text(f"{hero.name}", font_large, TEXT_COLOR, hero_rect.x, hero_rect.y - 70)
+            draw_health_bar(screen, hero_rect.x, hero_rect.y - 35, hero.current_hp, hero.max_hp, width=150)
+            draw_text(f"{hero.current_hp}/{hero.max_hp} HP", font_small, TEXT_COLOR, hero_rect.x + 45, hero_rect.y - 32)
+            draw_text(f"Energy: {hero.energy}/{hero.max_energy}  |  Block: {hero.block}", font_medium, TEXT_COLOR, hero_rect.x, hero_rect.bottom + 15)
         else:
-            draw_text("GAME OVER", font_large, ENEMY_TEXT_COLOR, 50, 50)
-        
-        # Enemy Stats
+            draw_text("GAME OVER", font_large, (255, 100, 100), hero_rect.x, hero_rect.y)
+
         if goblin.current_hp > 0:
-            draw_text(f"{goblin.name} (HP: {goblin.current_hp}/{goblin.max_hp})", font_large, ENEMY_TEXT_COLOR, WIDTH - 400, 50)
-            draw_text(f"Block: {goblin.block}", font_medium, ENEMY_TEXT_COLOR, WIDTH - 400, 90)
-            draw_text(f"Intent: {goblin.intent['desc']} ({goblin.intent['val']})", font_medium, INTENT_TEXT_COLOR, WIDTH - 400, 130)
+            pygame.draw.rect(screen, GOBLIN_COLOR, goblin_rect, border_radius=15)
+            draw_text(f"{goblin.name}", font_large, TEXT_COLOR, goblin_rect.x, goblin_rect.y - 70)
+            draw_health_bar(screen, goblin_rect.x, goblin_rect.y - 35, goblin.current_hp, goblin.max_hp, width=150)
+            draw_text(f"{goblin.current_hp}/{goblin.max_hp} HP", font_small, TEXT_COLOR, goblin_rect.x + 45, goblin_rect.y - 32)
+            draw_text(f"Block: {goblin.block}", font_medium, TEXT_COLOR, goblin_rect.x, goblin_rect.bottom + 15)
+            draw_text(f"Intent: {goblin.intent['desc']} ({goblin.intent['val']})", font_medium, INTENT_TEXT_COLOR, goblin_rect.x, goblin_rect.y - 110)
         else:
-            draw_text("VICTORY!", font_large, (100, 255, 100), WIDTH - 400, 50)
+            draw_text("VICTORY!", font_large, (100, 255, 100), goblin_rect.x, goblin_rect.y)
 
         # 4. Draw UI Panel
         pygame.draw.rect(screen, UI_PANEL_COLOR, ui_panel_rect)
@@ -119,7 +144,6 @@ def main():
         for btn in buttons:
             skill = btn["skill"]
             
-            # Hover & Energy logic
             if btn["rect"].collidepoint(mouse_pos) and hero.energy >= skill.energy_cost and hero.current_hp > 0 and goblin.current_hp > 0:
                 pygame.draw.rect(screen, BUTTON_HOVER_COLOR, btn["rect"], border_radius=10)
             else:
@@ -147,7 +171,6 @@ def main():
             end_text_rect = end_text.get_rect(center=end_turn_rect.center)
             screen.blit(end_text, end_text_rect)
 
-        # Update display
         pygame.display.flip()
         clock.tick(FPS)
 
