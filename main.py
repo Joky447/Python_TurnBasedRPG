@@ -1,7 +1,10 @@
 import pygame
 import sys
 import os
-from game_logic import Skill, Weapon, Player, Enemy
+from skills.skill import Skill
+from inventory_mechanics.weapon import Weapon
+from character.player import Player
+from mobs_boss.enemy import Enemy
 
 # Initialize Pygame
 pygame.init()
@@ -45,7 +48,7 @@ def draw_health_bar(surface, x, y, current_hp, max_hp, width=150, height=20):
 def main():
     # --- LOAD BACKGROUND IMAGE ---
    # --- LOAD BACKGROUND IMAGE ---
-    bg_image_path = "bcgpc.png"  # <--- Change this line
+    bg_image_path = "map/bcgpc.png"  # <--- Change this line
     if os.path.exists(bg_image_path):
         bg_image = pygame.image.load(bg_image_path).convert()
         bg_image = pygame.transform.scale(bg_image, (WIDTH, HEIGHT)) # Stretches to fit screen

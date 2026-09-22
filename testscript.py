@@ -1,5 +1,8 @@
 
-from game_logic import Skill, Weapon, Player, Enemy
+from skills.skill import Skill
+from inventory_mechanics.weapon import Weapon
+from character.player import Player
+from mobs_boss.enemy import Enemy
 
 if __name__ == "__main__":
     # 1. Define skills for a Starter Broadsword
