@@ -1,78 +1,76 @@
 import pygame
+
+import animation
+import assets
+import ui
 from game_state.state import GameState
+
 
 class LobbyState(GameState):
     def __init__(self, game_manager):
         super().__init__(game_manager)
-        self.font_large = pygame.font.SysFont("Arial", 48, bold=True)
-        self.font_medium = pygame.font.SysFont("Arial", 28, bold=True)
-        self.font_small = pygame.font.SysFont("Arial", 20)
-        
-        w = game_manager.screen.get_width()
-        h = game_manager.screen.get_height()
-        
-        self.btn_start = pygame.Rect(w // 2 - 150, h - 100, 300, 60)
-        
+        w, h = game_manager.screen.get_size()
+        self.bg = assets.load_background("map/bcgpc.png", (w, h))
+        self.btn_start = pygame.Rect(w // 2 - 160, h - 100, 320, 64)
+        self.hero = None
+
+    def enter(self, **kwargs):
+        p = self.game_manager.player
+        self.hero = animation.hero_sprite(p.gender, p.char_class, p.weapon.tier, height=300)
+
     def handle_events(self, events):
         for event in events:
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                mouse_pos = pygame.mouse.get_pos()
-                if self.btn_start.collidepoint(mouse_pos):
-                    self.game_manager.change_state("MapState")
+            if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.btn_start.collidepoint(event.pos)) \
+                    or (event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_SPACE)):
+                self.game_manager.change_state("MapState")
+                return
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.game_manager.change_state("CharacterCreationState")
+                return
+
+    def update(self):
+        self.hero.update(self.game_manager.dt)
 
     def draw(self, screen):
-        screen.fill((40, 40, 50))
-        
+        if self.bg:
+            screen.blit(self.bg, (0, 0))
+            ui.dim(screen, 150)
+        else:
+            screen.fill(ui.BG)
+
         player = self.game_manager.player
         if not player:
             return
-            
-        # Title
-        title_surf = self.font_large.render("Game Lobby", True, (255, 255, 200))
-        title_rect = title_surf.get_rect(center=(screen.get_width() // 2, 80))
-        screen.blit(title_surf, title_rect)
-        
+
+        ui.text_shadow(screen, "Game Lobby", 48, ui.GOLD, center=(screen.get_width() // 2, 60))
+
         # Character Info Box
-        info_rect = pygame.Rect(100, 150, 400, 400)
-        pygame.draw.rect(screen, (30, 30, 40), info_rect, border_radius=15)
-        pygame.draw.rect(screen, (200, 200, 200), info_rect, 2, border_radius=15)
-        
-        y_offset = 180
-        info_lines = [
-            f"Name: {player.name}",
-            f"Gender: {player.gender}",
-            f"Class: {player.char_class}",
-            f"Weapon: {player.weapon.name}",
-            f"HP: {player.max_hp}",
-            f"Energy: {player.max_energy}"
-        ]
-        
-        for line in info_lines:
-            text_surf = self.font_medium.render(line, True, (255, 255, 255))
-            screen.blit(text_surf, (130, y_offset))
-            y_offset += 40
-            
+        info_rect = pygame.Rect(80, 120, 440, 470)
+        ui.panel(screen, info_rect)
+        pygame.draw.ellipse(screen, (0, 0, 0), (info_rect.x + 40, info_rect.bottom - 42, 160, 24))
+        self.hero.draw(screen, (info_rect.x + 120, info_rect.bottom - 30))
+
+        x, y = info_rect.x + 240, info_rect.y + 30
+        for label, value in [("Name", player.name), ("Gender", player.gender), ("Class", player.char_class),
+                             ("Weapon", player.weapon.name), ("HP", player.max_hp),
+                             ("Energy", player.max_energy), ("Damage", f"+{player.stat_bonus}")]:
+            ui.text(screen, label, 16, ui.TEXT_DIM, topleft=(x, y))
+            ui.text(screen, value, 22, ui.TEXT, True, topleft=(x, y + 18))
+            y += 54
+
         # Skills Box
-        skills_rect = pygame.Rect(550, 150, 600, 400)
-        pygame.draw.rect(screen, (30, 30, 40), skills_rect, border_radius=15)
-        pygame.draw.rect(screen, (200, 200, 200), skills_rect, 2, border_radius=15)
-        
-        skills_title = self.font_medium.render("Equipped Skills:", True, (255, 200, 100))
-        screen.blit(skills_title, (580, 180))
-        
-        y_offset = 240
-        for skill in player.equipped_skills:
-            skill_text = f"- {skill.name} (Cost: {skill.energy_cost}): {skill.description}"
-            text_surf = self.font_small.render(skill_text, True, (220, 220, 220))
-            screen.blit(text_surf, (580, y_offset))
-            y_offset += 35
-            
-        # Start Button
-        mouse_pos = pygame.mouse.get_pos()
-        btn_color = (100, 150, 100) if self.btn_start.collidepoint(mouse_pos) else (60, 100, 60)
-        pygame.draw.rect(screen, btn_color, self.btn_start, border_radius=10)
-        pygame.draw.rect(screen, (255, 255, 255), self.btn_start, 2, border_radius=10)
-        
-        btn_text = self.font_medium.render("Begin Adventure", True, (255, 255, 255))
-        btn_text_rect = btn_text.get_rect(center=self.btn_start.center)
-        screen.blit(btn_text, btn_text_rect)
+        skills_rect = pygame.Rect(560, 120, 640, 470)
+        ui.panel(screen, skills_rect)
+        ui.text(screen, "Equipped Skills", 26, ui.GOLD, True, topleft=(skills_rect.x + 30, skills_rect.y + 24))
+
+        y = skills_rect.y + 80
+        for i, skill in enumerate(player.equipped_skills):
+            ui.text(screen, f"[{i + 1}] {skill.name}", 22, skill.color, True, topleft=(skills_rect.x + 30, y))
+            ui.text(screen, f"{skill.energy_cost} Energy", 18, ui.ENERGY, True, topright=(skills_rect.right - 30, y + 2))
+            ui.text(screen, skill.summary(), 18, ui.TEXT, topleft=(skills_rect.x + 30, y + 30))
+            ui.text(screen, skill.description, 16, ui.TEXT_DIM, topleft=(skills_rect.x + 30, y + 54))
+            y += 92
+
+        mouse = pygame.mouse.get_pos()
+        ui.button(screen, self.btn_start, "Begin Adventure", self.btn_start.collidepoint(mouse), size=28,
+                  color=(50, 90, 60), hover_color=(70, 130, 80))
