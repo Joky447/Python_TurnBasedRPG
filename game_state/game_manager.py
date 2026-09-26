@@ -4,6 +4,10 @@ from world.floor_map import FloorMap
 
 MAX_FLOOR = 5
 
+# Testing: every floor pin on the world map is unlocked and clicking one jumps there.
+# Set to False to play normally (floors unlock one by one after each boss).
+UNLOCK_ALL_FLOORS = True
+
 
 class GameManager:
     """Manages the main game loop, state transitions and the data of the current run."""
@@ -32,6 +36,11 @@ class GameManager:
         """Room number on this floor (1-5)."""
         node = self.floor_map.current
         return node.row + 1 if node else 1
+
+    def jump_to_floor(self, floor: int):
+        """Test mode: start a fresh path on any floor."""
+        self.current_floor = max(1, min(MAX_FLOOR, floor))
+        self.floor_map = FloorMap(self.current_floor)
 
     def complete_node(self):
         """Called when the current map room is finished. Advances floors after a boss."""

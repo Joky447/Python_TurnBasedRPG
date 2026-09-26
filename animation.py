@@ -85,19 +85,20 @@ class AnimatedSprite:
 
 
 # ---------------------------------------------------------------------------
-# Hero sheets: one row of unevenly spaced poses, frame 0 = idle pose. Outfit improves with weapon tier.
+# Hero attack sheets per weapon tier: 0 = starting gear ("normal all"),
+# 1 = upgraded weapon, 2 = legendary weapon. Frame 0 is the resting pose.
 HERO_SHEETS = {
-    ("Boy", "Swordsman"): ["character/boysword/boy sowrd basic cloth.png",
-                           "character/boysword/boy sword basic all.png",
+    ("Boy", "Swordsman"): ["character/boysword/boy sword basic all.png",
+                           "character/boysword/boy sword fully equip.png",
                            "character/boysword/boy sword fully equip.png"],
-    ("Boy", "Sorcerist"): ["character/boymage/mage boy basic cloth.png",
-                           "character/boymage/boy mage basic all.png",
+    ("Boy", "Sorcerist"): ["character/boymage/boy mage basic all.png",
+                           "character/boymage/mageboyattck.png",
                            "character/boymage/mageboyattck.png"],
     ("Girl", "Swordsman"): ["character/girlsword/girl sword basic ala.png",
                             "character/girlsword/girl sword fully equips no aura.png",
                             "character/girlsword/girl sword fully equip.png"],
-    ("Girl", "Sorcerist"): ["character/girlmage/girl mage normal cloth.png",
-                            "character/girlmage/girlmage normal all.png",
+    ("Girl", "Sorcerist"): ["character/girlmage/girlmage normal all.png",
+                            "character/girlmage/girlmage fuly equip.png",
                             "character/girlmage/girlmage fuly equip.png"],
 }
 
@@ -115,21 +116,64 @@ HERO_CUTS = {
 }
 
 
+# Outfits without a drawn idle get one generated from their resting pose
+# (see tools/make_idle_sprites.py): attack sheet -> generated idle sheet.
+GENERATED_IDLE_FRAMES = 8
+GENERATED_IDLES = {
+    "character/boymage/boy mage basic all.png": "character/boymage/idle animation normal all (generated).png",
+    "character/girlmage/girlmage normal all.png": "character/girlmage/idle animation normal all (generated).png",
+}
+
+# Idle loops per outfit tier: (sheet, cols, rows). cols works like in assets.load_frames.
+HERO_IDLE = {
+    ("Boy", "Swordsman"): [("character/boysword/idle animation boy normal all equipment.png",
+                            [214, 405, 595, 783, 967, 1151, 1342], 1),
+                           ("character/boysword/idle animation fully equipped.png", "auto", 1),
+                           ("character/boysword/idle animation fully equipped.png", "auto", 1)],
+    ("Boy", "Sorcerist"): [("character/boymage/idle animation normal all (generated).png", GENERATED_IDLE_FRAMES, 1),
+                           ("character/boymage/idle animaiton fully equipped.png", "auto", 1),
+                           ("character/boymage/idle animaiton fully equipped.png", "auto", 1)],
+    ("Girl", "Swordsman"): [("character/girlsword/idle animation basic all.png", "auto", 1),
+                            ("character/girlsword/idle animation equipped all.png", "auto", 1),
+                            ("character/girlsword/idle animation equipped all.png", "auto", 1)],
+    ("Girl", "Sorcerist"): [("character/girlmage/idle animation normal all (generated).png", GENERATED_IDLE_FRAMES, 1),
+                            ("character/girlmage/idle animation mage fully equip.png", "auto", 1),
+                            ("character/girlmage/idle animation mage fully equip.png", "auto", 1)],
+}
+HURT_FRAMES = 8
+
+
+def hurt_sheet_path(idle_path: str) -> str:
+    """Where the generated hurt sheet for an idle sheet lives (see tools/make_hurt_sprites.py)."""
+    folder, name = idle_path.rsplit("/", 1)
+    return f"{folder}/hurt - {name}"
+
+
 def hero_sprite(gender: str, char_class: str, tier: int, height: int = 250) -> AnimatedSprite:
     sheets = HERO_SHEETS.get((gender, char_class), [])
     if not sheets:
         return AnimatedSprite({})
-    sheet = sheets[max(0, min(tier, len(sheets) - 1))]
-    frames = assets.load_frames(sheet, HERO_CUTS.get(sheet, "auto"), 1, target_h=height)
-    # The sheet is an attack; its first frame doubles as the idle pose.
-    return AnimatedSprite({"idle": frames[:1], "attack": frames}, {"attack": 75})
+    tier = max(0, min(tier, len(sheets) - 1))
+    sheet = sheets[tier]
+    attack = assets.load_frames(sheet, HERO_CUTS.get(sheet, "auto"), 1, target_h=height)
+    clips = {"attack": attack, "idle": attack[:1]}   # attack frame 0 is the fallback still pose
+
+    idles = HERO_IDLE.get((gender, char_class), [])
+    if tier < len(idles):
+        idle_path, cols, rows = idles[tier]
+        idle = assets.load_frames(idle_path, cols, rows, target_h=height)
+        if idle:
+            clips["idle"] = idle
+        clips["hurt"] = assets.load_frames(hurt_sheet_path(idle_path), HURT_FRAMES, 1, target_h=height)
+    return AnimatedSprite(clips, {"attack": 75, "idle": 120, "hurt": 60})
 
 
 def enemy_sprite(spec: dict, height: int, tint=None) -> AnimatedSprite:
-    """spec maps clip name -> (sheet path, cols, rows, frame count or None)."""
+    """spec maps clip name -> (sheet path, cols, rows, frame count or None[, start frame])."""
     clips = {}
-    for clip, (sheet, cols, rows, count) in spec.items():
-        clips[clip] = assets.load_frames(sheet, cols, rows, target_h=height, count=count, tint=tint)
+    for clip, (sheet, cols, rows, count, *start) in spec.items():
+        clips[clip] = assets.load_frames(sheet, cols, rows, target_h=height, count=count, tint=tint,
+                                         start=start[0] if start else 0, clean_edges=bool(start))
     if "idle" not in clips or not clips["idle"]:
         base = clips.get("attack") or clips.get("hurt") or []
         clips["idle"] = [assets.isolate_main_shape(base[0])] if base else []

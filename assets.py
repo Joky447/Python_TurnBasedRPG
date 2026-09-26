@@ -35,7 +35,8 @@ def load_background(rel_path, size):
     return _image_cache[key]
 
 
-def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, tint=None):
+def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, tint=None, start=0,
+                clean_edges=False):
     """Slices a sprite sheet into animation frames.
 
     cols can be:
@@ -49,7 +50,7 @@ def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, ti
     where offset is the frame's top-left relative to the character's feet, which
     keeps the animation steady instead of jittering. Returns [] if missing.
     """
-    key = ("frames", rel_path, tuple(cols) if isinstance(cols, list) else cols, rows, target_h, count, flip, tint)
+    key = ("frames", rel_path, tuple(cols) if isinstance(cols, list) else cols, rows, target_h, count, flip, tint, start, clean_edges)
     if key in _image_cache:
         return _image_cache[key]
 
@@ -62,7 +63,9 @@ def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, ti
     opaque = not (sheet.get_bitsize() == 32 and sheet.get_at((0, 0)).a < 255)
     sheet = sheet.convert_alpha()
     if opaque:
-        sheet = _remove_light_background(sheet)
+        # Enclosed light areas bigger than this (e.g. inside a bow) count as background too
+        frames_guess = cols * rows if isinstance(cols, int) else 8
+        sheet = _remove_light_background(sheet, sheet.get_width() * sheet.get_height() // (400 * frames_guess))
 
     single_row = cols == "auto" or isinstance(cols, (list, tuple))
     if single_row:
@@ -77,11 +80,17 @@ def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, ti
         cells = [sheet.subsurface((c * cell_w, r * cell_h, cell_w, cell_h))
                  for r in range(rows) for c in range(cols)]
     cells = cells[:count]
+    if clean_edges:
+        cells = [_drop_edge_bleed(c.copy()) for c in cells]
+    if start:
+        # Play from the resting pose and return to it (for sheets whose calm frame isn't first)
+        cells = cells[start:] + cells[:start] + [cells[start]]
 
     # Scale factor and ground line come from frame 0 (the resting pose)
     first_bounds = cells[0].get_bounding_rect(min_alpha=20)
-    scale = target_h / max(1, first_bounds.height)
+    scale = 1 if target_h is None else target_h / max(1, first_bounds.height)
     ground = first_bounds.bottom * scale
+    first_feet = None
 
     frames = []
     for cell in cells:
@@ -92,11 +101,13 @@ def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, ti
         bounds = img.get_bounding_rect(min_alpha=20)
         if not bounds.width:
             bounds = pygame.Rect(0, 0, 1, 1)
-        # Horizontal anchor: grid cells share frame 0's position, auto frames use their own feet
+        # Horizontal anchor: grid cells share frame 0's feet, single-row frames use their own feet
         if single_row:
             anchor_x = _feet_x(img, bounds)
         else:
-            anchor_x = first_bounds.centerx * scale
+            if first_feet is None:
+                first_feet = _feet_x(img, bounds)
+            anchor_x = first_feet
         cropped = img.subsurface(bounds).copy()
         ox, oy = bounds.x - anchor_x, bounds.y - ground
         if flip:
@@ -149,6 +160,32 @@ def _find_pose_columns(sheet, min_width_ratio=0.2):
 
     edges = [0] + cuts + [w]
     return [(edges[i], edges[i + 1]) for i in range(len(edges) - 1)]
+
+
+def _drop_edge_bleed(cell, max_share=0.15):
+    """Removes pieces of neighbouring frames that spill over a grid cell's edge.
+
+    A piece is dropped when it touches the cell border, isn't part of the main
+    figure, and is small compared to everything drawn in the cell. Effects that
+    belong to this frame (a beam from the staff, a swirl around the body) are
+    connected to the figure, so they stay. Detached pieces sitting entirely in
+    the outer quarter of the cell are treated as spill-over too.
+    """
+    w, h = cell.get_size()
+    mask = pygame.mask.from_surface(cell, 20)
+    total = mask.count()
+    if not total:
+        return cell
+    main = mask.connected_component()
+    for comp in mask.connected_components(minimum=1):
+        rect = comp.get_bounding_rects()[0]
+        if comp.overlap(main, (0, 0)):
+            continue
+        touches = rect.left <= 1 or rect.top <= 1 or rect.right >= w - 1 or rect.bottom >= h - 1
+        in_side_band = rect.right <= w * 0.25 or rect.left >= w * 0.75   # detached, hugging a side
+        if (touches and comp.count() < total * max_share) or in_side_band:
+            comp.to_surface(cell, setcolor=(0, 0, 0, 0), unsetsurface=cell)
+    return cell
 
 
 def _drop_edge_slivers(cell, max_share=0.12, glow_reach=12):
@@ -207,13 +244,13 @@ def isolate_main_shape(frame):
     return clean.subsurface(bounds).copy(), (ox + bounds.x, oy + bounds.y)
 
 
-def _remove_light_background(img):
+def _remove_light_background(img, big_hole=None):
     """Makes near-white pixels connected to the image border transparent (for sheets saved without alpha)."""
     w, h = img.get_size()
     light = pygame.mask.from_threshold(img, (255, 255, 255, 255), (45, 45, 45, 255))
     border = pygame.Rect(0, 0, w, h)
     background = pygame.mask.Mask((w, h))
-    big_hole = max(60, w * h // 400)   # large enclosed light areas (e.g. inside a bow) are background too
+    big_hole = max(60, big_hole or w * h // 400)   # large enclosed light areas are background too
     for comp in light.connected_components(minimum=1):
         rect = comp.get_bounding_rects()[0] if comp.count() else None
         touches_border = rect and (rect.left == 0 or rect.top == 0 or rect.right == border.right or rect.bottom == border.bottom)

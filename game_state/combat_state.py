@@ -241,6 +241,8 @@ class CombatState(GameState):
                         self.flash[who] = 160
                         if who == "hero":
                             self.shake = 12
+                            if not self.hero_anim.busy and ent.is_alive:
+                                self.hero_anim.play("hurt")
                         else:
                             self.game_manager.stats["damage"] += ev[1]
                             if not self.enemy_anim.busy and self.enemy.is_alive:
@@ -333,7 +335,7 @@ class CombatState(GameState):
         elif enemy.is_alive:
             pygame.draw.rect(screen, (50, 200, 50), (self.enemy_x - 70, self.ground_y - 220, 140, 220), border_radius=15)
 
-        top = self.ground_y - enemy.height - 20
+        top = max(140, self.ground_y - enemy.height - 20)   # keep name, HP and intent on screen for giant bosses
         name_color = {"elite": (240, 120, 220), "boss": (255, 90, 80)}.get(enemy.rank, ui.TEXT)
         ui.text_shadow(screen, enemy.name, 24, name_color, midbottom=(self.enemy_x, top - 30))
         ui.health_bar(screen, self.enemy_x - 120, top - 24, enemy, 240, shown_hp=self.shown_hp["enemy"])
@@ -380,7 +382,8 @@ class CombatState(GameState):
 
             text_color = ui.TEXT if usable else ui.TEXT_DIM
             ui.text(screen, f"[{i + 1}]", 14, ui.TEXT_DIM, True, topleft=(rect.x + 10, rect.y + 14))
-            ui.text(screen, skill.name, 20, text_color, True, topleft=(rect.x + 40, rect.y + 12))
+            name_size = 20 if assets.font(20, True).size(skill.name)[0] <= rect.width - 60 - 16 * skill.energy_cost else 16
+            ui.text(screen, skill.name, name_size, text_color, True, midleft=(rect.x + 40, rect.y + 24))
             for p in range(skill.energy_cost):
                 pygame.draw.circle(screen, ui.ENERGY if usable else (70, 80, 100), (rect.right - 16 - p * 16, rect.y + 24), 6)
             ui.text_wrapped(screen, skill.summary(player, self.enemy), 16,

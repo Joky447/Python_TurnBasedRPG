@@ -4,6 +4,7 @@ import pygame
 
 import assets
 import ui
+from game_state.game_manager import UNLOCK_ALL_FLOORS
 from game_state.state import GameState
 from world.floor_map import ROWS
 
@@ -40,9 +41,20 @@ class MapState(GameState):
         self.focus = 0
         self.panel_open = False
 
+    def pin_at(self, pos):
+        """Floor number of the pin under pos, or None."""
+        for level, (x, y) in self.floor_pins.items():
+            if math.hypot(pos[0] - x, pos[1] - y) <= self.pin_radius + 12:
+                return level
+        return None
+
     def on_current_pin(self, pos):
-        x, y = self.floor_pins.get(self.game_manager.current_floor, (-999, -999))
-        return math.hypot(pos[0] - x, pos[1] - y) <= self.pin_radius + 12
+        return self.pin_at(pos) == self.game_manager.current_floor
+
+    def jump_to(self, level):
+        self.game_manager.jump_to_floor(level)
+        self.layout_nodes()
+        self.focus = 0
 
     def layout_nodes(self):
         fmap = self.game_manager.floor_map
@@ -76,6 +88,14 @@ class MapState(GameState):
         available = self.game_manager.floor_map.available()
         for event in events:
             if not self.panel_open:
+                if UNLOCK_ALL_FLOORS and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    level = self.pin_at(event.pos)
+                    if level and level != self.game_manager.current_floor:
+                        self.jump_to(level)
+                        continue
+                if UNLOCK_ALL_FLOORS and event.type == pygame.KEYDOWN and pygame.K_1 <= event.key <= pygame.K_5:
+                    self.jump_to(event.key - pygame.K_0)
+                    continue
                 opens = (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
                          and (self.on_current_pin(event.pos) or self.open_btn.collidepoint(event.pos)))                     or (event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_SPACE))
                 if opens:
@@ -114,15 +134,15 @@ class MapState(GameState):
         # --- World map floor pins (decorate the pins painted on the map) ---
         for level, (x, y) in self.floor_pins.items():
             r = self.pin_radius
-            if level > gm.current_floor:      # locked: darken the pin
+            if level > gm.current_floor and not UNLOCK_ALL_FLOORS:   # locked: darken the pin
                 shade = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
                 pygame.draw.circle(shade, (0, 0, 0, 140), (r, r), r)
                 screen.blit(shade, (x - r, y - r))
-            elif level < gm.current_floor:   # cleared: green check badge
+            elif level < gm.current_floor and not UNLOCK_ALL_FLOORS:   # cleared: green check badge
                 pygame.draw.circle(screen, (25, 60, 30), (x + r - 4, y - r + 4), 12)
                 pygame.draw.circle(screen, (140, 230, 140), (x + r - 4, y - r + 4), 12, 2)
                 ui.check_icon(screen, (x + r - 4, y - r + 5), 6)
-            else:                            # current: pulsing ring + bouncing marker
+            elif level == gm.current_floor:  # current: pulsing ring + bouncing marker
                 pygame.draw.circle(screen, ui.GOLD, (x, y), int(r + 5 + 5 * pulse), 3)
                 my = y - r - 22 - 6 * pulse
                 pygame.draw.polygon(screen, (0, 0, 0), [(x - 12, my - 3), (x + 12, my - 3), (x, my + 15)])
@@ -143,6 +163,13 @@ class MapState(GameState):
                       color=(50, 90, 60), hover_color=(70, 130, 80), size=20)
             if hovered_pin:
                 ui.tooltip(screen, [(f"Floor {gm.current_floor}", ui.GOLD), ("Click to choose your path.", ui.TEXT)], mouse, 220)
+            elif UNLOCK_ALL_FLOORS and self.pin_at(mouse):
+                ui.tooltip(screen, [(f"Floor {self.pin_at(mouse)}", ui.GOLD), ("Click to jump here (test mode).", ui.TEXT)], mouse, 240)
+            if UNLOCK_ALL_FLOORS:
+                banner = pygame.Rect(20, screen.get_height() - 62, 470, 42)
+                ui.panel(screen, banner, (60, 20, 20), (230, 120, 90), 220, 8)
+                ui.text(screen, "TEST MODE: all floors open. Click a floor or press 1-5.", 16, (255, 210, 190), True,
+                        center=banner.center)
             return
 
         # --- Floor path pop-up ---
