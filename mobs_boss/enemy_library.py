@@ -25,10 +25,10 @@ SHAMAN_ANIM = {
 }
 CASTLE_ARCHER_ANIM = {
     "idle":   (F2 + "knight1 idle animation.png", 5, 2, None),
-    "attack": (F2 + "knight1.png", 4, 1, None),
+    "attack": (F2 + "knight 1 attack.png", 4, 2, None, 3, True),
 }
-KNIGHT_ANIM = {"attack": (F2 + "knight2.png", 4, 1, None)}
-PRIEST_ANIM = {"attack": (F2 + "priest3.png", 4, 1, None)}
+KNIGHT_ANIM = {"attack": (F2 + "knight 2 attack.png", 4, 2, None, 3, True)}
+PRIEST_ANIM = {"attack": (F2 + "priest attack 4.png", "auto", 1, None, 0, True)}
 PALADIN_ANIM = {
     "idle":   (F2 + "Floor 2 Boss idle animation.png", 5, 2, None),
     "attack": (F2 + "floor2boss.png", 5, 2, None),
@@ -61,22 +61,23 @@ TEMPLATES = {
     ]),
 
     # ---------- Floor 2: Castle ----------
-    "Castle Archer": dict(hp=44, anim=CASTLE_ARCHER_ANIM, height=270, moves=lambda: [
+    "Castle Archer": dict(sheet=(F2 + "knight 1 attack.png", 3), idle=(F2 + "knight1 idle animation.png", 5, 2),
+                          hp=44, anim=CASTLE_ARCHER_ANIM, height=270, moves=lambda: [
         S("Volley", damage=4, hits=3),
         S("Crippling Shot", damage=7, effects={"weak": 2}),
         S("Take Cover", block=10),
     ]),
-    "Knight": dict(hp=56, anim=KNIGHT_ANIM, height=280, moves=lambda: [
+    "Knight": dict(sheet=(F2 + "knight 2 attack.png", 3), hp=56, anim=KNIGHT_ANIM, height=280, moves=lambda: [
         S("Sword Strike", damage=11),
         S("Shield Wall", block=14),
         S("Pommel Bash", damage=7, effects={"vulnerable": 2}),
     ]),
-    "Castle Priest": dict(hp=46, anim=PRIEST_ANIM, height=280, moves=lambda: [
+    "Castle Priest": dict(sheet=(F2 + "priest attack 4.png", 0, "auto", 1), hp=46, anim=PRIEST_ANIM, height=280, moves=lambda: [
         S("Smite", damage=9, element="holy"),
         S("Blessing", heal=10, self_effects={"strength": 1}),
         S("Judgement", effects={"weak": 2, "vulnerable": 1}, block=6),
     ]),
-    "Knight Captain": dict(hp=100, anim=KNIGHT_ANIM, height=320, tint=(255, 215, 150), pattern="cycle", moves=lambda: [
+    "Knight Captain": dict(sheet=(F2 + "knight 2 attack.png", 3), sheet_tint=(255, 215, 150), hp=100, anim=KNIGHT_ANIM, height=320, tint=(255, 215, 150), pattern="cycle", moves=lambda: [
         S("Rally", self_effects={"strength": 3}, block=10),
         S("Crushing Blow", damage=16),
         S("Shield Slam", damage=8, block=8, effects={"weak": 1}),
@@ -237,29 +238,48 @@ def generated_path(sheet_path: str, clip: str) -> str:
     return f"{sheet_path[:-4]} {clip}.png"
 
 
-def sheet_art(sheet) -> dict:
-    """Animation spec for a drawn 4x2 attack sheet plus its generated idle and hurt."""
+def sheet_layout(sheet):
+    """(path, rest frame, cols, rows) for a template's sheet=(path, rest[, cols, rows])."""
+    path, rest, *grid = sheet
+    cols, rows = grid if grid else (4, 2)
+    return path, rest, cols, rows
+
+
+def sheet_art(sheet, idle=None) -> dict:
+    """Animation spec for a drawn attack sheet plus its generated (or drawn) idle and hurt.
+
+    Drawn sheets are cleaned of spill-over from neighbouring frames and every frame
+    is lined up on the character's own feet (see assets.load_frames).
+    """
     if not sheet or not os.path.exists(assets.path(sheet[0])):
         return {}
-    path, rest = sheet
-    spec = {"attack": (path, 4, 2, None, rest)}
+    path, rest, cols, rows = sheet_layout(sheet)
+    spec = {"attack": (path, cols, rows, None, rest, True)}
     for clip in ("idle", "hurt"):
         gen = generated_path(path, clip)
         if os.path.exists(assets.path(gen)):
-            spec[clip] = (gen, GENERATED_FRAMES, 1, None)
+            spec[clip] = (gen, GENERATED_FRAMES, 1, None, 0, "first-body")
+    if idle and os.path.exists(assets.path(idle[0])):
+        spec["idle"] = (*idle, None, 0, True)
     return spec
 
 
-def create_enemy(floor: int, rank: str = "normal", room: int = 1) -> Enemy:
-    """Builds an enemy for `floor` (1-5). rank: normal / elite / boss. room: 1-5 on this floor."""
-    name = random.choice(FLOOR_POOLS[min(max(floor, 1), 5)][rank])
+# Each fight on a floor is a little tougher than the one before it
+HP_PER_ENCOUNTER = 0.08
+DAMAGE_PER_ENCOUNTER = 1
+# (Regular and elite fights only: the boss always comes last and keeps its designed stats.)
+
+
+def create_enemy(floor: int, name: str, rank: str = "normal", encounter: int = 1) -> Enemy:
+    """Builds enemy `name` for `floor`, scaled by floor and by its fight number on the floor."""
     t = TEMPLATES[name]
 
-    hp_mult = 1 + 0.25 * (floor - 1) + (0.04 * (room - 1) if rank != "boss" else 0)
-    dmg_bonus = (floor - 1) + (1 if rank == "elite" and floor > 1 else 0)
+    step = encounter - 1 if rank != "boss" else 0
+    hp_mult = 1 + 0.25 * (floor - 1) + HP_PER_ENCOUNTER * step
+    dmg_bonus = (floor - 1) + DAMAGE_PER_ENCOUNTER * step
 
     # Prefer the enemy's own art; otherwise use its tinted stand-in
-    anim, tint = sheet_art(t.get("sheet")) or own_art(t.get("art")), None
+    anim, tint = sheet_art(t.get("sheet"), t.get("idle")) or own_art(t.get("art")), t.get("sheet_tint")
     if not anim:
         anim, tint = t["anim"], t.get("tint")
 

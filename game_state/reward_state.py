@@ -8,17 +8,11 @@ from game_state.state import GameState
 from inventory_mechanics.weapon_library import random_weapons
 from skills.skill_library import random_skills
 
-TITLES = {
-    "normal": "Victory! Choose a Reward",
-    "elite": "Elite Defeated! Choose a Reward",
-    "boss": "Boss Defeated! Claim a Weapon",
-    "treasure": "Treasure! Choose One",
-    "rest": "Campfire: Rest or Train",
-}
+TITLE = "The Boss Awaits! Choose a Reward"
 
 
 class RewardState(GameState):
-    """Loot after combat, treasure rooms and campfires.
+    """The one reward per floor, given after the fight right before the boss.
 
     Some rewards need a second step: learning a skill asks which slot to replace,
     and training asks which skill to upgrade.
@@ -35,16 +29,15 @@ class RewardState(GameState):
         self.slot_rects = [pygame.Rect(w // 2 - 2 * 260 + i * 260 + 10, 330, 240, 200) for i in range(4)]
 
     # ------------------------------------------------------------------ setup
-    def enter(self, mode="normal", **kwargs):
-        self.mode = mode
+    def enter(self, **kwargs):
         self.pending = None
-        self.options = self.generate_options(mode)
+        self.options = self.generate_options()
         n = len(self.options)
         card_w, gap = 290, 30
         start = (self.w - (n * card_w + (n - 1) * gap)) // 2
         self.option_rects = [pygame.Rect(start + i * (card_w + gap), 170, card_w, 360) for i in range(n)]
 
-    def generate_options(self, mode):
+    def generate_options(self):
         p = self.game_manager.player
         owned = [s.name for s in p.equipped_skills]
         can_upgrade = any(not s.upgraded for s in p.equipped_skills)
@@ -59,23 +52,9 @@ class RewardState(GameState):
 
         upgrade = [{"kind": "upgrade"}] if can_upgrade else []
 
-        if mode == "normal":
-            opts += skill_opt()
-            extras = [{"kind": "heal", "amount": 20}, {"kind": "maxhp", "amount": 8},
-                      {"kind": "damage", "amount": 1}] + upgrade
-            opts += random.sample(extras, 3 - len(opts))
-        elif mode == "elite":
-            opts += skill_opt() + weapon_opts(1)
-            opts.append(random.choice(upgrade + [{"kind": "damage", "amount": 2}]))
-        elif mode == "boss":
-            opts += weapon_opts(3)
-            while len(opts) < 3:
-                opts.append({"kind": "damage", "amount": 2})
-        elif mode == "treasure":
-            opts += weapon_opts(2) + skill_opt()
-        elif mode == "rest":
-            opts.append({"kind": "heal", "amount": int(p.max_hp * 0.3)})
-            opts += upgrade or [{"kind": "maxhp", "amount": 6}]
+        # A new skill, a new weapon, and a skill upgrade (or raw power once all are upgraded)
+        opts += skill_opt() + weapon_opts(1)
+        opts.append(random.choice(upgrade) if upgrade else {"kind": "damage", "amount": 2})
         return opts
 
     # ------------------------------------------------------------------ input
@@ -148,7 +127,7 @@ class RewardState(GameState):
 
     def finish(self):
         self.game_manager.player.events.clear()
-        self.game_manager.complete_node()
+        self.game_manager.reward_claimed()
 
     # ------------------------------------------------------------------ drawing
     def describe(self, opt):
@@ -186,7 +165,7 @@ class RewardState(GameState):
         mouse = pygame.mouse.get_pos()
         p = self.game_manager.player
 
-        ui.text_shadow(screen, TITLES.get(self.mode, "Choose a Reward"), 44, ui.GOLD, center=(self.w // 2, 70))
+        ui.text_shadow(screen, TITLE, 44, ui.GOLD, center=(self.w // 2, 70))
         ui.text(screen, f"HP {p.current_hp}/{p.max_hp}   ·   {p.weapon.name} (+{p.stat_bonus} dmg)", 20, ui.TEXT_DIM,
                 center=(self.w // 2, 118))
 

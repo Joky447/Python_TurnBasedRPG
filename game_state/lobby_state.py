@@ -15,8 +15,9 @@ class LobbyState(GameState):
         self.hero = None
 
     def enter(self, **kwargs):
+        assets.play_music("title")
         p = self.game_manager.player
-        self.hero = animation.hero_sprite(p.gender, p.char_class, p.weapon.tier, height=300)
+        self.hero = animation.hero_sprite(p.gender, p.char_class, self.game_manager.current_floor - 1, height=300)
 
     def handle_events(self, events):
         for event in events:

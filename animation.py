@@ -85,22 +85,33 @@ class AnimatedSprite:
 
 
 # ---------------------------------------------------------------------------
-# Hero attack sheets per weapon tier: 0 = starting gear ("normal all"),
-# 1 = upgraded weapon, 2 = legendary weapon. Frame 0 is the resting pose.
+# Hero outfits by progress: stage N is used after clearing N floors (0 = start of the
+# run, 4 = after the Floor 4 boss). Each stage lists that outfit's attack sheet
+# (frame 0 is the resting pose). Stages repeat an earlier outfit until its art exists.
+BS, BM, GS, GM = "character/boysword/", "character/boymage/", "character/girlsword/", "character/girlmage/"
 HERO_SHEETS = {
-    ("Boy", "Swordsman"): ["character/boysword/boy sword basic all.png",
-                           "character/boysword/boy sword fully equip.png",
-                           "character/boysword/boy sword fully equip.png"],
-    ("Boy", "Sorcerist"): ["character/boymage/boy mage basic all.png",
-                           "character/boymage/mageboyattck.png",
-                           "character/boymage/mageboyattck.png"],
-    ("Girl", "Swordsman"): ["character/girlsword/girl sword basic ala.png",
-                            "character/girlsword/girl sword fully equips no aura.png",
-                            "character/girlsword/girl sword fully equip.png"],
-    ("Girl", "Sorcerist"): ["character/girlmage/girlmage normal all.png",
-                            "character/girlmage/girlmage fuly equip.png",
-                            "character/girlmage/girlmage fuly equip.png"],
+    ("Boy", "Swordsman"): [BS + "boy sword basic all- first floor character.png",
+                           BS + "boy sword basic cloth-equipped with great sword received from clear flloor 1.png",
+                           BS + "boy sword fully equip-used when recieved the armor from clear floor2.png",
+                           BS + "boy sword fuly equipped with helmet.png",
+                           BS + "boy sword fully equipped with shield.png"],
+    ("Boy", "Sorcerist"): [BM + "boy mage basic all.png",
+                           BM + "boy mage basic all.png",
+                           BM + "mageboyattck.png",
+                           BM + "mageboyattck.png",
+                           BM + "mageboyattck.png"],
+    ("Girl", "Swordsman"): [GS + "girl sword basic ala.png",
+                            GS + "girl sword basic ala.png",
+                            GS + "girl sword fully equips no aura.png",
+                            GS + "girl sword fully equips no aura.png",
+                            GS + "girl sword fully equip.png"],
+    ("Girl", "Sorcerist"): [GM + "girlmage normal all.png",
+                            GM + "girlmage normal all.png",
+                            GM + "girlmage fuly equip.png",
+                            GM + "girlmage fuly equip.png",
+                            GM + "girlmage fuly equip.png"],
 }
+OUTFIT_STAGES = 5
 
 
 # Hand-picked frame cuts (x positions) for sheets whose poses overlap. Others use "auto".
@@ -120,25 +131,35 @@ HERO_CUTS = {
 # (see tools/make_idle_sprites.py): attack sheet -> generated idle sheet.
 GENERATED_IDLE_FRAMES = 8
 GENERATED_IDLES = {
-    "character/boymage/boy mage basic all.png": "character/boymage/idle animation normal all (generated).png",
-    "character/girlmage/girlmage normal all.png": "character/girlmage/idle animation normal all (generated).png",
+    BM + "boy mage basic all.png": BM + "idle animation normal all (generated).png",
+    GM + "girlmage normal all.png": GM + "idle animation normal all (generated).png",
+    BS + "boy sword fuly equipped with helmet.png": BS + "idle animation helmet (generated).png",
+    BS + "boy sword fully equipped with shield.png": BS + "idle animation shield (generated).png",
 }
 
-# Idle loops per outfit tier: (sheet, cols, rows). cols works like in assets.load_frames.
+# Idle loop for each outfit stage: (sheet, cols, rows). cols works like in assets.load_frames;
+# grid sheets (rows > 1) are lined up on the character's feet frame by frame.
 HERO_IDLE = {
-    ("Boy", "Swordsman"): [("character/boysword/idle animation boy normal all equipment.png",
-                            [214, 405, 595, 783, 967, 1151, 1342], 1),
-                           ("character/boysword/idle animation fully equipped.png", "auto", 1),
-                           ("character/boysword/idle animation fully equipped.png", "auto", 1)],
-    ("Boy", "Sorcerist"): [("character/boymage/idle animation normal all (generated).png", GENERATED_IDLE_FRAMES, 1),
-                           ("character/boymage/idle animaiton fully equipped.png", "auto", 1),
-                           ("character/boymage/idle animaiton fully equipped.png", "auto", 1)],
-    ("Girl", "Swordsman"): [("character/girlsword/idle animation basic all.png", "auto", 1),
-                            ("character/girlsword/idle animation equipped all.png", "auto", 1),
-                            ("character/girlsword/idle animation equipped all.png", "auto", 1)],
-    ("Girl", "Sorcerist"): [("character/girlmage/idle animation normal all (generated).png", GENERATED_IDLE_FRAMES, 1),
-                            ("character/girlmage/idle animation mage fully equip.png", "auto", 1),
-                            ("character/girlmage/idle animation mage fully equip.png", "auto", 1)],
+    ("Boy", "Swordsman"): [(BS + "idle animation boy normal all equipment.png", [214, 405, 595, 783, 967, 1151, 1342], 1),
+                           (BS + "boy sword basic cloth idle.png", "auto", 1),
+                           (BS + "idle animation fully equipped.png", 4, 2),
+                           (BS + "idle animation helmet (generated).png", GENERATED_IDLE_FRAMES, 1),
+                           (BS + "idle animation shield (generated).png", GENERATED_IDLE_FRAMES, 1)],
+    ("Boy", "Sorcerist"): [(BM + "idle animation normal all (generated).png", GENERATED_IDLE_FRAMES, 1),
+                           (BM + "idle animation normal all (generated).png", GENERATED_IDLE_FRAMES, 1),
+                           (BM + "idle animaiton fully equipped.png", "auto", 1),
+                           (BM + "idle animaiton fully equipped.png", "auto", 1),
+                           (BM + "idle animaiton fully equipped.png", "auto", 1)],
+    ("Girl", "Swordsman"): [(GS + "idle animation basic all.png", 4, 2),
+                            (GS + "idle animation basic all.png", 4, 2),
+                            (GS + "idle animation equipped all.png", 4, 2),
+                            (GS + "idle animation equipped all.png", 4, 2),
+                            (GS + "idle animation equipped all.png", 4, 2)],
+    ("Girl", "Sorcerist"): [(GM + "idle animation normal all (generated).png", GENERATED_IDLE_FRAMES, 1),
+                            (GM + "idle animation normal all (generated).png", GENERATED_IDLE_FRAMES, 1),
+                            (GM + "idle animation mage fully equip.png", "auto", 1),
+                            (GM + "idle animation mage fully equip.png", "auto", 1),
+                            (GM + "idle animation mage fully equip.png", "auto", 1)],
 }
 HURT_FRAMES = 8
 
@@ -149,11 +170,12 @@ def hurt_sheet_path(idle_path: str) -> str:
     return f"{folder}/hurt - {name}"
 
 
-def hero_sprite(gender: str, char_class: str, tier: int, height: int = 250) -> AnimatedSprite:
+def hero_sprite(gender: str, char_class: str, stage: int, height: int = 250) -> AnimatedSprite:
+    """The hero in the outfit for `stage` (number of floors cleared)."""
     sheets = HERO_SHEETS.get((gender, char_class), [])
     if not sheets:
         return AnimatedSprite({})
-    tier = max(0, min(tier, len(sheets) - 1))
+    tier = max(0, min(stage, len(sheets) - 1))
     sheet = sheets[tier]
     attack = assets.load_frames(sheet, HERO_CUTS.get(sheet, "auto"), 1, target_h=height)
     clips = {"attack": attack, "idle": attack[:1]}   # attack frame 0 is the fallback still pose
@@ -161,7 +183,7 @@ def hero_sprite(gender: str, char_class: str, tier: int, height: int = 250) -> A
     idles = HERO_IDLE.get((gender, char_class), [])
     if tier < len(idles):
         idle_path, cols, rows = idles[tier]
-        idle = assets.load_frames(idle_path, cols, rows, target_h=height)
+        idle = assets.load_frames(idle_path, cols, rows, target_h=height, anchor="body" if rows > 1 else "cell")
         if idle:
             clips["idle"] = idle
         clips["hurt"] = assets.load_frames(hurt_sheet_path(idle_path), HURT_FRAMES, 1, target_h=height)
@@ -169,11 +191,22 @@ def hero_sprite(gender: str, char_class: str, tier: int, height: int = 250) -> A
 
 
 def enemy_sprite(spec: dict, height: int, tint=None) -> AnimatedSprite:
-    """spec maps clip name -> (sheet path, cols, rows, frame count or None[, start frame])."""
+    """spec maps clip name -> (sheet path, cols, rows, frame count or None[, start frame[, drawn]]).
+
+    drawn=True marks hand-drawn sheets whose frames aren't placed consistently in
+    their cells: they get spill-over cleanup and per-frame feet alignment.
+    drawn can also be an anchor mode name (see assets.load_frames).
+    """
     clips = {}
-    for clip, (sheet, cols, rows, count, *start) in spec.items():
+    for clip, (sheet, cols, rows, count, *extra) in spec.items():
+        start = extra[0] if extra else 0
+        drawn = extra[1] if len(extra) > 1 else bool(start)
+        if drawn in (True, False):
+            anchor = "body" if drawn else "cell"
+        else:
+            anchor, drawn = drawn, False       # an explicit anchor mode, no spill-over cleanup
         clips[clip] = assets.load_frames(sheet, cols, rows, target_h=height, count=count, tint=tint,
-                                         start=start[0] if start else 0, clean_edges=bool(start))
+                                         start=start, clean_edges=drawn, anchor=anchor)
     if "idle" not in clips or not clips["idle"]:
         base = clips.get("attack") or clips.get("hurt") or []
         clips["idle"] = [assets.isolate_main_shape(base[0])] if base else []

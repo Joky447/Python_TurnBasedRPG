@@ -33,6 +33,7 @@ class CharacterCreationState(GameState):
         self.preview = None
 
     def enter(self, **kwargs):
+        assets.play_music("title")
         self.refresh_preview()
 
     def refresh_preview(self):

@@ -33,19 +33,24 @@ class GameManager:
 
     @property
     def current_encounter(self) -> int:
-        """Room number on this floor (1-5)."""
-        node = self.floor_map.current
-        return node.row + 1 if node else 1
+        """Number of the fight being taken on (1 = first fight of the floor)."""
+        enc = self.floor_map.current
+        return enc.number if enc else self.floor_map.total
 
     def jump_to_floor(self, floor: int):
-        """Test mode: start a fresh path on any floor."""
+        """Test mode: start any floor from its first fight."""
         self.current_floor = max(1, min(MAX_FLOOR, floor))
         self.floor_map = FloorMap(self.current_floor)
 
-    def complete_node(self):
-        """Called when the current map room is finished. Advances floors after a boss."""
-        node = self.floor_map.current
-        if node and node.type == "boss":
+    def start_next_fight(self):
+        if self.floor_map.current:
+            self.change_state("CombatState")
+
+    def encounter_won(self):
+        """After a victory: the reward comes right before the boss, and a boss win opens the next floor."""
+        beat_boss = self.floor_map.current and self.floor_map.current.rank == "boss"
+        self.floor_map.complete_current()
+        if beat_boss:
             if self.current_floor >= MAX_FLOOR:
                 self.change_state("GameOverState", victory=True)
                 return
@@ -54,7 +59,15 @@ class GameManager:
             if self.player:
                 self.player.heal(self.player.max_hp)   # Fully rested between floors
                 self.player.events.clear()
-        self.change_state("MapState")
+            self.change_state("MapState")
+        elif self.floor_map.next_is_boss():
+            self.change_state("RewardState")
+        else:
+            self.change_state("MapState")
+
+    def reward_claimed(self):
+        """The reward before the boss is done: straight into the boss fight."""
+        self.start_next_fight()
 
     # --- States -------------------------------------------------------------
     def add_state(self, state_name, state_obj):

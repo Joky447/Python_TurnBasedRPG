@@ -1,76 +1,52 @@
-"""Procedural branching path for one floor (5 rooms deep, boss at the top)."""
-import random
+"""The fixed sequence of fights on one floor.
 
-ROWS = 5
-NODE_TYPES = ("fight", "elite", "rest", "treasure", "boss")
+Every enemy of the floor is fought once, in order: regular enemies from weakest
+to strongest, then the elite, then the boss. The reward screen appears only
+after the fight right before the boss.
+"""
+from mobs_boss.enemy_library import FLOOR_POOLS, TEMPLATES
+
+# Title shown for each regular fight, in order. Elite and boss have fixed titles.
+REGULAR_TITLES = ["Scout", "Fighter", "Warrior", "Veteran", "Champion"]
 
 
-class MapNode:
-    def __init__(self, row: int, col: int, node_type: str):
-        self.row = row
-        self.col = col
-        self.type = node_type
-        self.children: list[int] = []   # column indices in the next row
-        self.visited = False
+class Encounter:
+    def __init__(self, number: int, enemy: str, rank: str, title: str):
+        self.number = number        # 1-based position on the floor
+        self.enemy = enemy          # template name in enemy_library.TEMPLATES
+        self.rank = rank            # "normal", "elite" or "boss"
+        self.title = title
+        self.done = False
 
 
 class FloorMap:
     def __init__(self, floor: int):
         self.floor = floor
-        self.rows: list[list[MapNode]] = []
-        self.current: MapNode | None = None
-        self._generate()
+        pool = FLOOR_POOLS[min(max(floor, 1), max(FLOOR_POOLS))]
+        regulars = sorted(pool["normal"], key=lambda name: TEMPLATES[name]["hp"])
+        order = [(n, "normal") for n in regulars] + [(n, "elite") for n in pool["elite"]] + \
+                [(n, "boss") for n in pool["boss"]]
+        self.encounters = []
+        for i, (name, rank) in enumerate(order):
+            if rank == "normal":
+                title = REGULAR_TITLES[min(i, len(REGULAR_TITLES) - 1)]
+            else:
+                title = "Elite" if rank == "elite" else "Floor Boss"
+            self.encounters.append(Encounter(i + 1, name, rank, title))
+        self.index = 0              # the next fight to take on
 
-    def _generate(self):
-        widths = [random.randint(2, 3) for _ in range(ROWS - 1)] + [1]
-        for r, width in enumerate(widths):
-            row = []
-            for c in range(width):
-                row.append(MapNode(r, c, self._roll_type(r)))
-            self.rows.append(row)
+    @property
+    def current(self) -> Encounter | None:
+        return self.encounters[self.index] if self.index < len(self.encounters) else None
 
-        # Guarantee a campfire right before the boss
-        pre_boss = self.rows[ROWS - 2]
-        if not any(n.type == "rest" for n in pre_boss):
-            random.choice(pre_boss).type = "rest"
+    @property
+    def total(self) -> int:
+        return len(self.encounters)
 
-        # Connect each row to the next. Walking both rows left-to-right together
-        # means paths never cross, and every node gets at least one link in and out.
-        for r in range(ROWS - 1):
-            here, nxt = self.rows[r], self.rows[r + 1]
-            i = j = 0
-            here[0].children.append(0)
-            while i < len(here) - 1 or j < len(nxt) - 1:
-                if i == len(here) - 1:
-                    j += 1
-                elif j == len(nxt) - 1:
-                    i += 1
-                else:
-                    step = random.choice(("left", "right", "both"))
-                    if step in ("left", "both"):
-                        i += 1
-                    if step in ("right", "both"):
-                        j += 1
-                here[i].children.append(j)
-            for node in here:
-                node.children = sorted(set(node.children))
+    def complete_current(self):
+        if self.current:
+            self.current.done = True
+            self.index += 1
 
-    @staticmethod
-    def _roll_type(row: int) -> str:
-        if row == ROWS - 1:
-            return "boss"
-        if row == 0:
-            return "fight"
-        return random.choices(("fight", "elite", "rest", "treasure"), weights=(55, 15, 15, 15))[0]
-
-    def available(self) -> list[MapNode]:
-        """Nodes the player may move to next."""
-        if self.current is None:
-            return list(self.rows[0])
-        if self.current.row == ROWS - 1:
-            return []
-        return [self.rows[self.current.row + 1][c] for c in self.current.children]
-
-    def move_to(self, node: MapNode):
-        self.current = node
-        node.visited = True
+    def next_is_boss(self) -> bool:
+        return self.current is not None and self.current.rank == "boss"

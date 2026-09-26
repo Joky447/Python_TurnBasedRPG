@@ -62,7 +62,7 @@ class GameOverState(GameState):
             ui.text_shadow(screen, "You conquered all five floors!", 28, ui.TEXT, False, center=(cx, 215))
         else:
             ui.text_shadow(screen, "GAME OVER", 84, ui.RED, center=(cx, 140))
-            ui.text_shadow(screen, f"You fell on floor {gm.current_floor}, room {gm.current_encounter}.", 28, ui.TEXT,
+            ui.text_shadow(screen, f"You fell on floor {gm.current_floor}, encounter {gm.current_encounter}.", 28, ui.TEXT,
                            False, center=(cx, 215))
 
         box = pygame.Rect(cx - 220, 270, 440, 230)

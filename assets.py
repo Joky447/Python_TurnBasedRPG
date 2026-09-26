@@ -6,6 +6,20 @@ import pygame
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SOUND_DIR = os.path.join(BASE_DIR, "sounds")
 
+# Named sound effects: name -> (file, volume, max play time in ms or None).
+# pygame can't read .m4a/.webm, so those were converted to .ogg copies next to the originals.
+SFX = "sound_effects/"
+SOUNDS = {
+    "sword_basic": (SFX + "sword effects/Metal sword effect.ogg", 0.7, None),
+    "sword_great": (SFX + "sword effects/Great Sword Sound Effect.mp3", 0.7, 1800),   # the file runs ~5 s
+    "wand_basic":  (SFX + "mage attack effect/normal wand.ogg", 0.7, None),
+    "wand_great":  (SFX + "mage attack effect/great wand effect.ogg", 0.7, None),
+}
+MUSIC = {
+    "title": (SFX + "startscreen music/Teller of the Tales.mp3", 0.5),
+}
+_current_music = None
+
 _image_cache = {}
 _font_cache = {}
 _sound_cache = {}
@@ -36,7 +50,7 @@ def load_background(rel_path, size):
 
 
 def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, tint=None, start=0,
-                clean_edges=False):
+                clean_edges=False, anchor="cell"):
     """Slices a sprite sheet into animation frames.
 
     cols can be:
@@ -49,8 +63,16 @@ def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, ti
     tall) and cropped to its visible pixels. Returns a list of (surface, offset)
     where offset is the frame's top-left relative to the character's feet, which
     keeps the animation steady instead of jittering. Returns [] if missing.
+
+    anchor="cell": frames keep their position inside the sheet (for sheets drawn
+    on a consistent grid). anchor="body": every frame is lined up on where the
+    character's own feet are, ignoring glowing effects, so characters drawn at a
+    different spot in each cell don't jump around or float. anchor="first-body":
+    the feet found in frame 0 are used for every frame (for generated idle and
+    hurt sheets, whose frames already share one position).
     """
-    key = ("frames", rel_path, tuple(cols) if isinstance(cols, list) else cols, rows, target_h, count, flip, tint, start, clean_edges)
+    key = ("frames", rel_path, tuple(cols) if isinstance(cols, list) else cols, rows, target_h, count, flip, tint,
+           start, clean_edges, anchor)
     if key in _image_cache:
         return _image_cache[key]
 
@@ -102,7 +124,13 @@ def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, ti
         if not bounds.width:
             bounds = pygame.Rect(0, 0, 1, 1)
         # Horizontal anchor: grid cells share frame 0's feet, single-row frames use their own feet
-        if single_row:
+        if anchor == "body":
+            anchor_x, ground = _body_feet(img, bounds)
+        elif anchor == "first-body":
+            if first_feet is None:
+                first_feet, ground = _body_feet(img, bounds)
+            anchor_x = first_feet
+        elif single_row:
             anchor_x = _feet_x(img, bounds)
         else:
             if first_feet is None:
@@ -221,12 +249,63 @@ def _drop_edge_slivers(cell, max_share=0.12, glow_reach=12):
     return out
 
 
+def _body_feet(img, bounds, step=4):
+    """(feet x, ground y) of the character in a frame, ignoring glowing effects.
+
+    Works on a reduced copy for speed: bright, strongly coloured pixels (fire,
+    ice, magic, slash trails) are left out, the largest remaining blob is taken
+    as the body, and its lowest part is where the feet are.
+    """
+    w, h = img.get_size()
+    sw, sh = max(1, w // step), max(1, h // step)
+    small = pygame.transform.scale(img, (sw, sh))
+    body = pygame.mask.Mask((sw, sh))
+    small.lock()
+    for y in range(sh):
+        for x in range(sw):
+            c = small.get_at((x, y))
+            if c.a > 150:
+                hi, lo = max(c.r, c.g, c.b), min(c.r, c.g, c.b)
+                if not (hi > 170 and hi - lo > 90):
+                    body.set_at((x, y))
+    small.unlock()
+    main = body.connected_component()
+    if main.count() < 20:
+        return _feet_x(img, bounds), bounds.bottom
+    rect = main.get_bounding_rects()[0].unionall(main.get_bounding_rects()[1:])
+    band = max(1, rect.height // 10)
+    feet = pygame.mask.Mask((sw, sh))
+    feet.draw(main, (0, 0))
+    feet.erase(pygame.mask.Mask((sw, rect.bottom - band), fill=True), (0, 0))
+    feet_cx = _median_x(feet, pygame.Rect(0, rect.bottom - band, sw, band))
+    return feet_cx * step, rect.bottom * step
+
+
+def _median_x(mask, rect):
+    """x position that splits the mask's pixels inside rect in half (a weighted middle).
+
+    Thin things that reach the ground, like a resting sword tip, barely move it,
+    while the bulk of the boots decides where the feet are.
+    """
+    counts = []
+    for x in range(rect.left, rect.right):
+        counts.append(sum(mask.get_at((x, y)) for y in range(rect.top, rect.bottom)))
+    total = sum(counts)
+    if not total:
+        return rect.centerx
+    running = 0
+    for i, c in enumerate(counts):
+        running += c
+        if running * 2 >= total:
+            return rect.left + i + 0.5
+    return rect.centerx
+
+
 def _feet_x(img, bounds):
-    """x-center of the lowest band of pixels in a frame (where the character stands)."""
+    """x position of the feet: the weighted middle of the lowest band of solid pixels."""
     band_h = max(4, bounds.height // 12)
     band = pygame.Rect(bounds.x, bounds.bottom - band_h, bounds.width, band_h)
-    feet = img.subsurface(band).get_bounding_rect(min_alpha=60)
-    return band.x + (feet.centerx if feet.width else band.width / 2)
+    return _median_x(pygame.mask.from_surface(img, 60), band)
 
 
 def isolate_main_shape(frame):
@@ -263,13 +342,21 @@ def _remove_light_background(img, big_hole=None):
 
 
 def play_sound(name, volume=0.6):
-    """Plays sounds/<name>.wav|.ogg|.mp3 if it exists. Silently does nothing otherwise."""
+    """Plays a named sound from SOUNDS, or sounds/<name>.wav|.ogg|.mp3 if it exists.
+
+    Silently does nothing when the sound or the audio device is missing.
+    """
     if not pygame.mixer.get_init():
         return
+    maxtime = 0
     if name not in _sound_cache:
         snd = None
-        for ext in (".wav", ".ogg", ".mp3"):
-            full = os.path.join(SOUND_DIR, name + ext)
+        if name in SOUNDS:
+            candidates = [path(SOUNDS[name][0])]
+            volume = SOUNDS[name][1]
+        else:
+            candidates = [os.path.join(SOUND_DIR, name + ext) for ext in (".wav", ".ogg", ".mp3")]
+        for full in candidates:
             if os.path.exists(full):
                 try:
                     snd = pygame.mixer.Sound(full)
@@ -278,5 +365,31 @@ def play_sound(name, volume=0.6):
                     snd = None
                 break
         _sound_cache[name] = snd
+    if name in SOUNDS and SOUNDS[name][2]:
+        maxtime = SOUNDS[name][2]
     if _sound_cache[name]:
-        _sound_cache[name].play()
+        channel = _sound_cache[name].play(maxtime=maxtime)
+        if channel and maxtime:
+            channel.fadeout(maxtime)
+
+
+def play_music(name, fade_ms=800):
+    """Loops a track from MUSIC. Keeps playing if it's already on."""
+    global _current_music
+    if not pygame.mixer.get_init() or name not in MUSIC or _current_music == name:
+        return
+    file, volume = MUSIC[name]
+    try:
+        pygame.mixer.music.load(path(file))
+        pygame.mixer.music.set_volume(volume)
+        pygame.mixer.music.play(-1, fade_ms=fade_ms)
+        _current_music = name
+    except pygame.error:
+        _current_music = None
+
+
+def stop_music(fade_ms=800):
+    global _current_music
+    if pygame.mixer.get_init() and _current_music:
+        pygame.mixer.music.fadeout(fade_ms)
+    _current_music = None

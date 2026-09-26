@@ -50,15 +50,17 @@ class CombatState(GameState):
         self.buttons = []
 
     # ------------------------------------------------------------------ setup
-    def enter(self, rank="normal", **kwargs):
+    def enter(self, **kwargs):
         gm = self.game_manager
         player = gm.player
         floor = gm.current_floor
+        self.encounter = gm.floor_map.current
 
         self.bg_image = assets.load_background(f"map/{['1st', '2nd', '3rd', '4th', '5th'][min(floor, 5) - 1]}floor.png",
                                                (self.w, self.h))
-        self.enemy = create_enemy(floor, rank, gm.current_encounter)
-        self.hero_anim = animation.hero_sprite(player.gender, player.char_class, player.weapon.tier, height=250)
+        enc = self.encounter
+        self.enemy = create_enemy(floor, enc.enemy, enc.rank, enc.number)
+        self.hero_anim = animation.hero_sprite(player.gender, player.char_class, gm.current_floor - 1, height=250)
         self.enemy_anim = animation.enemy_sprite(self.enemy.anim, self.enemy.height, self.enemy.tint)
 
         player.reset_combat()
@@ -70,7 +72,8 @@ class CombatState(GameState):
         self.pending_skill = None     # skill waiting for the attack animation to connect
         self.enemy_acted = False
         self.floaters: list[FloatingText] = []
-        self.log: list[tuple[str, tuple]] = [(f"{self.enemy.name} appears!", ui.GOLD)]
+        self.log: list[tuple[str, tuple]] = [(f"Encounter {enc.number} · {enc.title}", ui.TEXT_DIM),
+                                                 (f"{self.enemy.name} appears!", ui.GOLD)]
         self.shake = 0
         self.flash = {"hero": 0, "enemy": 0}
         self.shown_hp = {"hero": player.current_hp, "enemy": self.enemy.current_hp}
@@ -117,11 +120,19 @@ class CombatState(GameState):
             # Resolve the hit when the swing connects (see update)
             self.pending_skill = skill
             self.hero_anim.play("attack", on_done=self.resolve_pending)
-            assets.play_sound("swing")
+            assets.play_sound(self.attack_sound())
         else:
             skill.execute(player, self.enemy)
             assets.play_sound("buff")
             self.check_end()
+
+    def attack_sound(self):
+        """Metal sword / normal wand with starting gear; great sword / great wand once upgraded
+        (a better weapon, or the great sword that comes with clearing Floor 1)."""
+        player = self.game_manager.player
+        upgraded = player.weapon.tier > 0 or self.game_manager.current_floor > 1
+        kind = "sword" if player.char_class == "Swordsman" else "wand"
+        return f"{kind}_{'great' if upgraded else 'basic'}"
 
     def resolve_pending(self):
         if self.pending_skill:
@@ -221,7 +232,7 @@ class CombatState(GameState):
         gm = self.game_manager
         if self.phase == "victory":
             gm.stats[{"normal": "enemies", "elite": "elites", "boss": "bosses"}[self.enemy.rank]] += 1
-            gm.change_state("RewardState", mode=self.enemy.rank)
+            gm.encounter_won()
         else:
             gm.change_state("GameOverState", victory=False)
 
@@ -403,8 +414,8 @@ class CombatState(GameState):
             ui.text(screen, msg, 16, faded, topleft=(rect.x + 12, y))
             y += 22
         gm = self.game_manager
-        ui.text_shadow(screen, f"Floor {gm.current_floor}  ·  Room {gm.current_encounter}/5", 20, ui.GOLD,
-                       topright=(self.w - 20, 16))
+        ui.text_shadow(screen, f"Floor {gm.current_floor}  ·  Encounter {self.encounter.number}/{gm.floor_map.total}"
+                               f"  ·  {self.encounter.title}", 20, ui.GOLD, topright=(self.w - 20, 16))
 
     def draw_turn_banner(self, screen):
         if self.phase == "enemy":

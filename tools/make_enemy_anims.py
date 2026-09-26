@@ -18,7 +18,7 @@ import pygame
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import assets  # noqa: E402
-from mobs_boss.enemy_library import GENERATED_FRAMES, TEMPLATES, generated_path  # noqa: E402
+from mobs_boss.enemy_library import GENERATED_FRAMES, TEMPLATES, generated_path, sheet_layout  # noqa: E402
 
 BREATH = 0.018      # how far the head sinks, as a fraction of height
 SWAY = 0.004        # sideways sway of the head, as a fraction of height
@@ -29,11 +29,18 @@ HURT_KEYS = [(0, 0.01, "flash"), (4, 0.04, "flash_soft"), (8, 0.07, "red"), (10,
              (8, 0.07, "red_soft"), (5, 0.05, None), (2, 0.03, None), (0, 0.01, None)]
 
 
-def rest_pose(path, rest):
-    """The calm frame at full resolution, cleaned of bits of neighbouring frames. Returns (surface, feet)."""
-    surf, (ox, oy) = assets.load_frames(path, 4, 2, target_h=None, start=rest, clean_edges=True)[0]
+def rest_pose(path, rest, cols, rows):
+    """The calm frame at full resolution, cleaned of bits of neighbouring frames. Returns (surface, feet).
+
+    Uses the same feet alignment as the attack animation, and trims anything
+    below the feet, so idle, attack and hurt all stand on the same spot.
+    """
+    surf, (ox, oy) = assets.load_frames(path, cols, rows, target_h=None, start=rest, clean_edges=True,
+                                        anchor="body")[0]
     cleaned = assets._drop_edge_slivers(surf.copy())
-    return cleaned, (-ox, -oy)
+    feet = (-ox, -oy)
+    trimmed = cleaned.subsurface((0, 0, cleaned.get_width(), max(1, min(cleaned.get_height(), feet[1])))).copy()
+    return trimmed, feet
 
 
 def glow_layer(base):
@@ -123,11 +130,11 @@ def main():
         sheet = t.get("sheet")
         if not sheet or (only and only not in name.lower()):
             continue
-        path, rest = sheet
+        path, rest, cols, rows = sheet_layout(sheet)
         if not os.path.exists(assets.path(path)):
             print("missing", path)
             continue
-        base, feet = rest_pose(path, rest)
+        base, feet = rest_pose(path, rest, cols, rows)
         pygame.image.save(idle_sheet(base, glow_layer(base)), assets.path(generated_path(path, "idle")))
         pygame.image.save(hurt_sheet(base, feet), assets.path(generated_path(path, "hurt")))
         print("wrote idle + hurt for", name)

@@ -16,6 +16,7 @@ class MainMenuState(GameState):
 
     def enter(self, **kwargs):
         self.focus = 0
+        assets.play_music("title")
 
     def start(self):
         self.game_manager.new_run()
