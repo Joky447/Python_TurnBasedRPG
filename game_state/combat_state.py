@@ -7,12 +7,16 @@ import animation
 import assets
 import ui
 from character.entity import STATUS_INFO
+from game_state.game_manager import MAX_FLOOR
 from game_state.state import GameState
 from mobs_boss.enemy_library import create_enemy
+from world.floor_map import FloorMap
 
 ENEMY_TURN_DELAY = 550      # ms pause before the enemy acts, so the player can follow along
 END_SCREEN_DELAY = 1400     # ms before leaving combat after a win/loss
 
+
+GLASS = 160   # how solid the bottom panel and skill cards are (255 = not see-through)
 
 class FloatingText:
     def __init__(self, msg, pos, color, size=30):
@@ -53,15 +57,25 @@ class CombatState(GameState):
     def enter(self, **kwargs):
         gm = self.game_manager
         player = gm.player
-        floor = gm.current_floor
-        self.encounter = gm.floor_map.current
+        self.rematch = gm.rematch is not None
+        if self.rematch:
+            floor, self.encounter, _ = gm.rematch
+            self.floor_total = len(FloorMap(floor).encounters)
+        else:
+            floor = gm.current_floor
+            self.encounter = gm.floor_map.current
+            self.floor_total = gm.floor_map.total
+        self.floor = floor
+        final_boss = self.encounter.rank == "boss" and floor >= MAX_FLOOR
 
         self.bg_image = assets.load_background(f"map/{['1st', '2nd', '3rd', '4th', '5th'][min(floor, 5) - 1]}floor.png",
                                                (self.w, self.h))
         enc = self.encounter
         self.enemy = create_enemy(floor, enc.enemy, enc.rank, enc.number)
-        self.hero_anim = animation.hero_sprite(player.gender, player.char_class, gm.current_floor - 1, height=250)
+        self.hero_anim = animation.hero_sprite(player.gender, player.char_class, player.outfit_stage, height=250)
         self.enemy_anim = animation.enemy_sprite(self.enemy.anim, self.enemy.height, self.enemy.tint)
+        # Music starts once the sprites are loaded, so it lines up with the battle appearing
+        assets.play_music("final_boss" if final_boss else "battle")
 
         player.reset_combat()
         player.start_turn()
@@ -78,6 +92,7 @@ class CombatState(GameState):
         self.flash = {"hero": 0, "enemy": 0}
         self.shown_hp = {"hero": player.current_hp, "enemy": self.enemy.current_hp}
         self.enemy_alpha = 255
+        self.enemy_lunge = False
         self.status_hitboxes = []
         self.setup_buttons()
         assets.play_sound("battle_start")
@@ -127,10 +142,9 @@ class CombatState(GameState):
             self.check_end()
 
     def attack_sound(self):
-        """Metal sword / normal wand with starting gear; great sword / great wand once upgraded
-        (a better weapon, or the great sword that comes with clearing Floor 1)."""
+        """Metal sword / normal wand with the starting weapon; great sword / great wand once upgraded."""
         player = self.game_manager.player
-        upgraded = player.weapon.tier > 0 or self.game_manager.current_floor > 1
+        upgraded = player.weapon.tier > 0
         kind = "sword" if player.char_class == "Swordsman" else "wand"
         return f"{kind}_{'great' if upgraded else 'basic'}"
 
@@ -160,6 +174,8 @@ class CombatState(GameState):
         move = enemy.intent
         self.add_log(f"{enemy.name} uses {move.name}", (255, 190, 120))
         if (move.damage or move.effects) and "attack" in self.enemy_anim.clips:
+            # melee enemies dash over to the hero for attacks that deal damage
+            self.enemy_lunge = bool(move.damage) and getattr(enemy, "melee", False)
             self.enemy_anim.play("attack", on_done=lambda: self.finish_enemy_turn(move))
         else:
             self.finish_enemy_turn(move)
@@ -230,7 +246,9 @@ class CombatState(GameState):
 
     def leave_combat(self):
         gm = self.game_manager
-        if self.phase == "victory":
+        if self.rematch:
+            gm.end_rematch(self.phase == "victory")
+        elif self.phase == "victory":
             gm.stats[{"normal": "enemies", "elite": "elites", "boss": "bosses"}[self.enemy.rank]] += 1
             gm.encounter_won()
         else:
@@ -334,15 +352,20 @@ class CombatState(GameState):
 
     def draw_enemy(self, screen):
         enemy = self.enemy
-        pygame.draw.ellipse(screen, (0, 0, 0), (self.enemy_x - 90, self.ground_y - 10, 180, 24))
+        x = self.enemy_x
+        if self.enemy_anim.busy and self.enemy_anim.current == "attack" and getattr(self, "enemy_lunge", False):
+            # dashes toward the hero and back during the swing (mirror of the Swordsman's dash)
+            x -= math.sin(self.enemy_anim.progress() * math.pi) * (self.enemy_x - self.hero_x - 260)
+        x = int(x)
+        pygame.draw.ellipse(screen, (0, 0, 0), (x - 90, self.ground_y - 10, 180, 24))
         if self.enemy_anim.available:
             if self.enemy_alpha < 255:
                 layer = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
-                self.enemy_anim.draw(layer, (self.enemy_x, self.ground_y))
+                self.enemy_anim.draw(layer, (x, self.ground_y))
                 layer.set_alpha(int(self.enemy_alpha))
                 screen.blit(layer, (0, 0))
             else:
-                self.enemy_anim.draw(screen, (self.enemy_x, self.ground_y), flash=self.flash["enemy"] > 0)
+                self.enemy_anim.draw(screen, (x, self.ground_y), flash=self.flash["enemy"] > 0)
         elif enemy.is_alive:
             pygame.draw.rect(screen, (50, 200, 50), (self.enemy_x - 70, self.ground_y - 220, 140, 220), border_radius=15)
 
@@ -374,7 +397,7 @@ class CombatState(GameState):
                 ui.text_shadow(screen, label, 24, (255, 120, 100), midleft=(x - 12, int(cy)))
 
     def draw_bottom_panel(self, screen, player, mouse):
-        ui.panel(screen, self.ui_panel_rect, ui.PANEL, ui.PANEL_BORDER, 235, 0)
+        ui.panel(screen, self.ui_panel_rect, ui.PANEL, ui.PANEL_BORDER, GLASS, 0)
         ui.energy_orb(screen, self.energy_center, player.energy, player.max_energy)
         ui.text(screen, "ENERGY", 14, ui.TEXT_DIM, True, center=(self.energy_center[0], self.energy_center[1] + 50))
 
@@ -386,19 +409,29 @@ class CombatState(GameState):
             if hovered and usable:
                 rect.y -= 8
             fill = ui.BUTTON_HOVER if hovered and usable else (ui.BUTTON if usable else ui.BUTTON_DISABLED)
-            pygame.draw.rect(screen, fill, rect, border_radius=10)
-            pygame.draw.rect(screen, skill.color, (rect.x, rect.y, rect.width, 6), border_top_left_radius=10,
-                             border_top_right_radius=10)
-            pygame.draw.rect(screen, ui.GOLD if hovered and usable else (200, 200, 210), rect, 2, border_radius=10)
+            ui.panel(screen, rect, fill, ui.GOLD_LIGHT if hovered and usable else (ui.GOLD if usable else (92, 84, 70)),
+                     220 if hovered and usable else GLASS, 8)
+            pygame.draw.rect(screen, skill.color, (rect.x + 8, rect.y + 5, rect.width - 16, 4), border_radius=2)
 
             text_color = ui.TEXT if usable else ui.TEXT_DIM
             ui.text(screen, f"[{i + 1}]", 14, ui.TEXT_DIM, True, topleft=(rect.x + 10, rect.y + 14))
-            name_size = 20 if assets.font(20, True).size(skill.name)[0] <= rect.width - 60 - 16 * skill.energy_cost else 16
-            ui.text(screen, skill.name, name_size, text_color, True, midleft=(rect.x + 40, rect.y + 24))
-            for p in range(skill.energy_cost):
-                pygame.draw.circle(screen, ui.ENERGY if usable else (70, 80, 100), (rect.right - 16 - p * 16, rect.y + 24), 6)
+            # energy cost badge (top right) -- red when there isn't enough energy
+            affordable = player.energy >= skill.energy_cost
+            badge = (rect.right - 20, rect.y + 24)
+            pygame.draw.circle(screen, (4, 8, 20), badge, 14)
+            pygame.draw.circle(screen, ui.ENERGY if affordable else (150, 50, 50), badge, 12)
+            pygame.draw.circle(screen, ui.GOLD_LIGHT if affordable else (92, 84, 70), badge, 12, 1)
+            ui.text(screen, str(skill.energy_cost), 17, (10, 20, 40) if affordable else ui.TEXT, True, center=badge)
+            name_w = rect.width - 40 - 44
+            name_size = 20
+            while assets.font(name_size, True).size(skill.name)[0] > name_w and name_size > 13:
+                name_size -= 1
+            ui.text_shadow(screen, skill.name, name_size, text_color, midleft=(rect.x + 40, rect.y + 24))
             ui.text_wrapped(screen, skill.summary(player, self.enemy), 16,
-                            pygame.Rect(rect.x + 10, rect.y + 46, rect.width - 20, 90), text_color)
+                            pygame.Rect(rect.x + 10, rect.y + 46, rect.width - 20, 60), text_color)
+            cost = f"Costs {skill.energy_cost} Energy" if affordable else f"Needs {skill.energy_cost} Energy"
+            ui.text_shadow(screen, cost, 14, (150, 200, 255) if affordable else (255, 130, 120), False,
+                           bottomleft=(rect.x + 10, rect.bottom - 8))
 
         can_end = not self.input_locked
         hovered = self.end_turn_rect.collidepoint(mouse)
@@ -414,8 +447,9 @@ class CombatState(GameState):
             ui.text(screen, msg, 16, faded, topleft=(rect.x + 12, y))
             y += 22
         gm = self.game_manager
-        ui.text_shadow(screen, f"Floor {gm.current_floor}  ·  Encounter {self.encounter.number}/{gm.floor_map.total}"
-                               f"  ·  {self.encounter.title}", 20, ui.GOLD, topright=(self.w - 20, 16))
+        label = "Rematch" if self.rematch else f"Encounter {self.encounter.number}/{self.floor_total}"
+        ui.text_shadow(screen, f"Floor {self.floor}  ·  {label}  ·  {self.encounter.title}", 20, ui.GOLD,
+                       topright=(self.w - 20, 16))
 
     def draw_turn_banner(self, screen):
         if self.phase == "enemy":
@@ -427,10 +461,13 @@ class CombatState(GameState):
         for i, btn in enumerate(self.buttons):
             if btn["rect"].collidepoint(mouse):
                 s = btn["skill"]
-                lines = [(f"{s.name}  ·  {s.energy_cost} Energy", s.color), (s.summary(player, self.enemy), ui.TEXT)]
+                lines = [(s.name, s.color), (f"Energy cost: {s.energy_cost}  (you have {player.energy})",
+                                              (150, 200, 255) if player.energy >= s.energy_cost else (255, 130, 120)),
+                         (s.summary(player, self.enemy), ui.TEXT)]
                 if s.description:
                     lines.append((s.description, ui.TEXT_DIM))
-                ui.tooltip(screen, lines, (btn["rect"].x, btn["rect"].y - 10))
+                # small and see-through, so it doesn't hide the fighters
+                ui.tooltip(screen, lines, (btn["rect"].x - 12, btn["rect"].y - 4), width=230, size=15, alpha=170)
                 return
         if self.intent_rect and self.intent_rect.collidepoint(mouse) and self.enemy.intent:
             m = self.enemy.intent

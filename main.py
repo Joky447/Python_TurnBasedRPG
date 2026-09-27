@@ -24,7 +24,7 @@ def main():
 
     WIDTH, HEIGHT = 1280, 720
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Turn-Based RPG")
+    pygame.display.set_caption("Spells x Blades")
     clock = pygame.time.Clock()
     FPS = 60
 

@@ -56,7 +56,9 @@ def rotate_about(surf, pivot, angle):
 
 def make_hurt_sheet(idle_path, cols, rows):
     # Resting pose at full resolution, with its feet position
-    base, (ox, oy) = assets.load_frames(idle_path, cols, rows, target_h=None)[0]
+    grid = rows > 1
+    base, (ox, oy) = assets.load_frames(idle_path, cols, rows, target_h=None, anchor="body-wide" if grid else "cell",
+                                        clean_edges=grid, defringe=grid)[0]
     feet = (-ox, -oy)
     w, h = base.get_size()
 

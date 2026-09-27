@@ -57,8 +57,7 @@ def glow_pulse(surf, strength):
 
 
 def make_idle_sheet(attack_path):
-    cols = animation.HERO_CUTS.get(attack_path, "auto")
-    base, (ox, oy) = assets.load_frames(attack_path, cols, 1, target_h=None)[0]
+    base, (ox, oy) = animation.load_attack(attack_path, None)[0]
     feet_x = -ox
     w, h = base.get_size()
 

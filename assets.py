@@ -7,16 +7,23 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SOUND_DIR = os.path.join(BASE_DIR, "sounds")
 
 # Named sound effects: name -> (file, volume, max play time in ms or None).
-# pygame can't read .m4a/.webm, so those were converted to .ogg copies next to the originals.
+# Sounds pygame can't read (.m4a/.webm/.mkv) were converted to .ogg
+# ("(trimmed)" copies also skip silence at the start, so the sound lines up with the action).
 SFX = "sound_effects/"
 SOUNDS = {
     "sword_basic": (SFX + "sword effects/Metal sword effect.ogg", 0.7, None),
     "sword_great": (SFX + "sword effects/Great Sword Sound Effect.mp3", 0.7, 1800),   # the file runs ~5 s
     "wand_basic":  (SFX + "mage attack effect/normal wand.ogg", 0.7, None),
-    "wand_great":  (SFX + "mage attack effect/great wand effect.ogg", 0.7, None),
+    "wand_great":  (SFX + "mage attack effect/upgraded mage weapon (trimmed).ogg", 0.7, 2200),
+    "victory":     (SFX + "victory effect/victory (trimmed).ogg", 0.5, None),
+    "defeat":      (SFX + "defeat_sound/Factorio Defeat Sound Effect (Audio).mp3", 0.8, None),
 }
+# Music: name -> (file, volume[, start at this many seconds into the track])
 MUSIC = {
     "title": (SFX + "startscreen music/Teller of the Tales.mp3", 0.5),
+    "map": (SFX + "map music background/That Zen Moment.mp3", 0.6, 22),   # skip the near-silent intro
+    "battle": (SFX + "fighting scene/Darkling.mp3", 0.2),
+    "final_boss": (SFX + "floor 5 final boss music/Burnt Spirit.mp3", 0.5),
 }
 _current_music = None
 
@@ -30,10 +37,16 @@ def path(*parts):
     return os.path.join(BASE_DIR, *parts)
 
 
-def font(size, bold=False):
-    key = (size, bold)
+# Serif fonts in the style of the title art. The first one installed is used.
+BODY_FONTS = "cambria,constantia,georgia,palatinolinotype,timesnewroman"
+DISPLAY_FONTS = "trajanprobold,trajanpro,cambria,georgia,timesnewroman"
+
+
+def font(size, bold=False, display=False):
+    """Body text font, or the engraved display font for big titles."""
+    key = (size, bold, display)
     if key not in _font_cache:
-        _font_cache[key] = pygame.font.SysFont("Arial", size, bold=bold)
+        _font_cache[key] = pygame.font.SysFont(DISPLAY_FONTS if display else BODY_FONTS, size, bold=bold)
     return _font_cache[key]
 
 
@@ -49,8 +62,40 @@ def load_background(rel_path, size):
     return _image_cache[key]
 
 
+def load_part(rel_path, size):
+    """Loads a UI part (with transparency) stretched to exactly `size`. Returns None if missing."""
+    key = ("part", rel_path, size)
+    if key not in _image_cache:
+        full = path(rel_path)
+        _image_cache[key] = (pygame.transform.smoothscale(pygame.image.load(full).convert_alpha(), size)
+                             if os.path.exists(full) else None)
+    return _image_cache[key]
+
+
+def load_icon(rel_path, size):
+    """Loads an image scaled to fit inside `size` (keeping its shape). Returns None if missing."""
+    key = ("icon", rel_path, size)
+    if key not in _image_cache:
+        full = path(rel_path)
+        img = None
+        if os.path.exists(full):
+            raw = pygame.image.load(full)
+            opaque = not (raw.get_bitsize() == 32 and raw.get_at((0, 0)).a < 255)
+            raw = raw.convert_alpha()
+            if opaque:   # art saved with a white or checkered background
+                raw = _remove_light_background(raw, raw.get_width() * raw.get_height())
+            bounds = raw.get_bounding_rect(min_alpha=10)
+            if bounds.width and bounds.height:
+                raw = raw.subsurface(bounds)
+            scale = min(size[0] / raw.get_width(), size[1] / raw.get_height())
+            img = pygame.transform.smoothscale(raw, (max(1, int(raw.get_width() * scale)),
+                                                     max(1, int(raw.get_height() * scale))))
+        _image_cache[key] = img
+    return _image_cache[key]
+
+
 def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, tint=None, start=0,
-                clean_edges=False, anchor="cell"):
+                clean_edges=False, anchor="cell", defringe=False):
     """Slices a sprite sheet into animation frames.
 
     cols can be:
@@ -72,7 +117,7 @@ def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, ti
     hurt sheets, whose frames already share one position).
     """
     key = ("frames", rel_path, tuple(cols) if isinstance(cols, list) else cols, rows, target_h, count, flip, tint,
-           start, clean_edges, anchor)
+           start, clean_edges, anchor, defringe)
     if key in _image_cache:
         return _image_cache[key]
 
@@ -87,7 +132,7 @@ def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, ti
     if opaque:
         # Enclosed light areas bigger than this (e.g. inside a bow) count as background too
         frames_guess = cols * rows if isinstance(cols, int) else 8
-        sheet = _remove_light_background(sheet, sheet.get_width() * sheet.get_height() // (400 * frames_guess))
+        sheet = _cleaned_sheet(rel_path, sheet, sheet.get_width() * sheet.get_height() // (400 * frames_guess))
 
     single_row = cols == "auto" or isinstance(cols, (list, tuple))
     if single_row:
@@ -118,6 +163,8 @@ def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, ti
     for cell in cells:
         size = (max(1, int(cell.get_width() * scale)), max(1, int(cell.get_height() * scale)))
         img = pygame.transform.smoothscale(cell, size)
+        if defringe:
+            img = _defringe(img)
         if tint:
             img.fill(tint, special_flags=pygame.BLEND_RGB_MULT)
         bounds = img.get_bounding_rect(min_alpha=20)
@@ -126,6 +173,8 @@ def load_frames(rel_path, cols, rows=1, target_h=300, count=None, flip=False, ti
         # Horizontal anchor: grid cells share frame 0's feet, single-row frames use their own feet
         if anchor == "body":
             anchor_x, ground = _body_feet(img, bounds)
+        elif anchor == "body-wide":     # lower third of the body: stable for wide stances
+            anchor_x, ground = _body_feet(img, bounds, band_frac=0.35)
         elif anchor == "first-body":
             if first_feet is None:
                 first_feet, ground = _body_feet(img, bounds)
@@ -190,6 +239,42 @@ def _find_pose_columns(sheet, min_width_ratio=0.2):
     return [(edges[i], edges[i + 1]) for i in range(len(edges) - 1)]
 
 
+def _defringe(img, passes=3):
+    """Removes a reddish halo along a sprite's outline (left over when a background was cut
+    away) and tiny loose specks. Only outline pixels that are much redder than they are green
+    are removed, so gold hair and armor stay."""
+    img = img.copy()
+    w, h = img.get_size()
+    brush = pygame.mask.Mask((3, 3), fill=True)
+    for _ in range(passes):
+        solid = pygame.mask.from_surface(img, 20)
+        grown = solid.copy()
+        grown.invert()
+        grown = grown.convolve(brush)             # transparent area grown by 1 px
+        outline = solid.overlap_mask(grown, (-1, -1))
+        img.lock()
+        for x, y in _points(outline):
+            c = img.get_at((x, y))
+            if c.a and c.r > 60 and c.r > 1.7 * c.g and c.r > 1.5 * c.b:
+                img.set_at((x, y), (0, 0, 0, 0))
+        img.unlock()
+    solid = pygame.mask.from_surface(img, 20)
+    total = solid.count()
+    for comp in solid.connected_components(minimum=1):
+        if comp.count() < total * 0.003:
+            comp.to_surface(img, setcolor=(0, 0, 0, 0), unsetsurface=img)
+    return img
+
+
+def _points(mask):
+    w, h = mask.get_size()
+    for rect in mask.get_bounding_rects():
+        for y in range(rect.top, rect.bottom):
+            for x in range(rect.left, rect.right):
+                if mask.get_at((x, y)):
+                    yield x, y
+
+
 def _drop_edge_bleed(cell, max_share=0.15):
     """Removes pieces of neighbouring frames that spill over a grid cell's edge.
 
@@ -249,7 +334,7 @@ def _drop_edge_slivers(cell, max_share=0.12, glow_reach=12):
     return out
 
 
-def _body_feet(img, bounds, step=4):
+def _body_feet(img, bounds, step=4, band_frac=0.1):
     """(feet x, ground y) of the character in a frame, ignoring glowing effects.
 
     Works on a reduced copy for speed: bright, strongly coloured pixels (fire,
@@ -273,7 +358,7 @@ def _body_feet(img, bounds, step=4):
     if main.count() < 20:
         return _feet_x(img, bounds), bounds.bottom
     rect = main.get_bounding_rects()[0].unionall(main.get_bounding_rects()[1:])
-    band = max(1, rect.height // 10)
+    band = max(1, int(rect.height * band_frac))
     feet = pygame.mask.Mask((sw, sh))
     feet.draw(main, (0, 0))
     feet.erase(pygame.mask.Mask((sw, rect.bottom - band), fill=True), (0, 0))
@@ -321,6 +406,28 @@ def isolate_main_shape(frame):
     clean = pygame.Surface(surf.get_size(), pygame.SRCALPHA)
     main.to_surface(clean, setsurface=surf, unsetcolor=(0, 0, 0, 0))
     return clean.subsurface(bounds).copy(), (ox + bounds.x, oy + bounds.y)
+
+
+CACHE_DIR = path("cache")   # sheets with their white background already removed (safe to delete)
+
+
+def _cleaned_sheet(rel_path, sheet, big_hole):
+    """Background removal on a big sheet takes seconds, so the result is saved once in
+    cache/ and reused. It is redone automatically when the original art changes."""
+    src = path(rel_path)
+    cached = os.path.join(CACHE_DIR, rel_path.replace("/", "__").replace("\\", "__"))
+    if os.path.exists(cached) and os.path.getmtime(cached) >= os.path.getmtime(src):
+        try:
+            return pygame.image.load(cached).convert_alpha()
+        except pygame.error:
+            pass
+    cleaned = _remove_light_background(sheet, big_hole)
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        pygame.image.save(cleaned, cached)
+    except (OSError, pygame.error):
+        pass
+    return cleaned
 
 
 def _remove_light_background(img, big_hole=None):
@@ -378,11 +485,11 @@ def play_music(name, fade_ms=800):
     global _current_music
     if not pygame.mixer.get_init() or name not in MUSIC or _current_music == name:
         return
-    file, volume = MUSIC[name]
+    file, volume, *start = MUSIC[name]
     try:
         pygame.mixer.music.load(path(file))
         pygame.mixer.music.set_volume(volume)
-        pygame.mixer.music.play(-1, fade_ms=fade_ms)
+        pygame.mixer.music.play(-1, start=start[0] if start else 0.0, fade_ms=fade_ms)
         _current_music = name
     except pygame.error:
         _current_music = None

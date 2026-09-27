@@ -18,18 +18,21 @@ class GameOverState(GameState):
 
     def enter(self, victory=False, **kwargs):
         self.victory = victory
+        assets.stop_music(1500)
         self.last_class = None
         p = self.game_manager.player
         if p:
             self.last_class = (p.gender, p.char_class)
 
     def retry(self):
+        """Back to Base Camp. The character keeps every item found this run."""
+        self.game_manager.return_to_camp()
+
+    def to_menu(self):
         gm = self.game_manager
         gm.new_run()
-        creation = gm.states["CharacterCreationState"]
-        if self.last_class:
-            creation.selected_gender, creation.selected_class = self.last_class
-        gm.change_state("CharacterCreationState")
+        gm.save()
+        gm.change_state("MainMenuState")
 
     def handle_events(self, events):
         for event in events:
@@ -38,14 +41,14 @@ class GameOverState(GameState):
                     self.retry()
                     return
                 if self.btn_menu.collidepoint(event.pos):
-                    self.game_manager.change_state("MainMenuState")
+                    self.to_menu()
                     return
             elif event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_r):
                     self.retry()
                     return
                 if event.key == pygame.K_ESCAPE:
-                    self.game_manager.change_state("MainMenuState")
+                    self.to_menu()
                     return
 
     def draw(self, screen):
@@ -77,6 +80,6 @@ class GameOverState(GameState):
             y += 38
 
         mouse = pygame.mouse.get_pos()
-        ui.button(screen, self.btn_retry, "Play Again  [R]", self.btn_retry.collidepoint(mouse), size=22,
+        ui.button(screen, self.btn_retry, "Return to Camp  [R]", self.btn_retry.collidepoint(mouse), size=22,
                   color=(50, 90, 60), hover_color=(70, 130, 80))
         ui.button(screen, self.btn_menu, "Main Menu  [Esc]", self.btn_menu.collidepoint(mouse), size=22)

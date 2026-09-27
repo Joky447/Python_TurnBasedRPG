@@ -5,3 +5,8 @@ __pycache__/
 # Mac/Windows system files
 .DS_Store
 Thumbs.db
+# Player save (roster and items)
+save.json
+
+# Generated sprite cache
+cache/

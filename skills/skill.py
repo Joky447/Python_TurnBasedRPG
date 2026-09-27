@@ -31,6 +31,7 @@ class Skill:
         self.self_effects = self_effects or {}
         self.description = description
         self.upgraded = False
+        self.power = 0          # floor tier of an empowered skill (from post-boss rewards)
 
     # --- Info --------------------------------------------------------------
     @property
@@ -87,6 +88,20 @@ class Skill:
     # --- Progression -------------------------------------------------------
     def copy(self) -> "Skill":
         return copy.deepcopy(self)
+
+    def empower(self, level: int):
+        """Scales the skill for later floors: +30% numbers per level and +1 effect stack every 2 levels.
+        Used for skills won from bosses, so they keep up with the enemies."""
+        if level <= self.power:
+            return
+        mult = (1 + 0.3 * level) / (1 + 0.3 * self.power)
+        extra = level // 2 - self.power // 2
+        self.power = level
+        self.damage = round(self.damage * mult)
+        self.block = round(self.block * mult)
+        self.heal = round(self.heal * mult)
+        self.effects = {k: v + extra for k, v in self.effects.items()}
+        self.self_effects = {k: v + extra for k, v in self.self_effects.items()}
 
     def upgrade(self):
         """Improves this skill once (+). Numbers grow by roughly a third."""

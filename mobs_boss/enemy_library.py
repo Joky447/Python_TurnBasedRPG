@@ -206,9 +206,15 @@ TEMPLATES.update({
     ]),
 })
 
+# Enemies that fight up close: they dash to the hero when they attack, like the Swordsman does.
+# (Archers, priests, witches, druids and other casters attack from where they stand.)
+MELEE = {"Goblin", "Goblin Warlord", "Knight", "Knight Captain", "The Iron Paladin",
+         "Frostbite Goblin", "Frost Knight", "Mushroom Brute", "Crystal Golem", "Treant Guardian",
+         "Magma Imp", "Cinder Stalker", "Obsidian Knight", "Infernal Warlord", "Ignis, the Demon Lord"}
+
 FLOOR_POOLS = {
-    1: {"normal": ["Goblin", "Goblin Archer"], "elite": ["Goblin Warlord"], "boss": ["Goblin Shaman"]},
-    2: {"normal": ["Castle Archer", "Knight", "Castle Priest"], "elite": ["Knight Captain"], "boss": ["The Iron Paladin"]},
+    1: {"normal": ["Goblin", "Goblin Archer"], "elite": [], "boss": ["Goblin Shaman"]},
+    2: {"normal": ["Castle Archer", "Knight", "Castle Priest"], "elite": [], "boss": ["The Iron Paladin"]},
     3: {"normal": ["Frostbite Goblin", "Ice Archer", "Frost Knight"], "elite": ["Snow Witch"],
         "boss": ["Glacius, the Frost King"]},
     4: {"normal": ["Thorn Sprite", "Mushroom Brute", "Crystal Golem", "Forest Druid"], "elite": ["Treant Guardian"],
@@ -283,7 +289,7 @@ def create_enemy(floor: int, name: str, rank: str = "normal", encounter: int = 1
     if not anim:
         anim, tint = t["anim"], t.get("tint")
 
-    return Enemy(
+    enemy = Enemy(
         name=name,
         max_hp=int(t["hp"] * hp_mult),
         moves=t["moves"](),
@@ -294,3 +300,5 @@ def create_enemy(floor: int, name: str, rank: str = "normal", encounter: int = 1
         tint=tint,
         rank=rank,
     )
+    enemy.melee = name in MELEE
+    return enemy

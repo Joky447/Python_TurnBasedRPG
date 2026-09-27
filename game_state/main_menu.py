@@ -1,3 +1,5 @@
+import math
+
 import pygame
 
 import assets
@@ -6,12 +8,22 @@ from game_state.state import GameState
 
 
 class MainMenuState(GameState):
+    """Start screen. The title art (menu_ui/start screen ui.png) has the buttons painted in;
+    this screen maps clicks to them and highlights the one under the mouse or keyboard focus."""
+    ART = "menu_ui/start screen ui.png"
+    ART_SIZE = (1675, 939)
+    # Where the painted buttons are in the original art: (left, top, right, bottom)
+    BUTTONS_IN_ART = [(603, 447, 1072, 543), (617, 571, 1045, 655)]
+
     def __init__(self, game_manager):
         super().__init__(game_manager)
         w, h = game_manager.screen.get_size()
+        self.art = assets.load_background(self.ART, (w, h))
         self.bg = assets.load_background("map/bcgpc.png", (w, h))
         self.options = [("Start Game", self.start), ("Quit", self.quit)]
-        self.rects = [pygame.Rect(w // 2 - 130, 340 + i * 90, 260, 64) for i in range(len(self.options))]
+        sx, sy = w / self.ART_SIZE[0], h / self.ART_SIZE[1]
+        self.rects = [pygame.Rect(round(l * sx), round(t * sy), round((r - l) * sx), round((b - t) * sy))
+                      for l, t, r, b in self.BUTTONS_IN_ART]
         self.focus = 0
 
     def enter(self, **kwargs):
@@ -19,8 +31,10 @@ class MainMenuState(GameState):
         assets.play_music("title")
 
     def start(self):
-        self.game_manager.new_run()
-        self.game_manager.change_state("CharacterCreationState")
+        gm = self.game_manager
+        gm.new_run()
+        # Returning players go to Base Camp; the first time, make a character
+        gm.change_state("LobbyState" if gm.roster else "CharacterCreationState")
 
     def quit(self):
         self.game_manager.running = False
@@ -48,20 +62,35 @@ class MainMenuState(GameState):
                     self.quit()
 
     def draw(self, screen):
+        if not self.art:
+            self.draw_fallback(screen)
+            return
+        screen.blit(self.art, (0, 0))
+
+        # Highlight the focused painted button: a soft light over it plus a pulsing gold frame
+        rect = self.rects[self.focus]
+        pulse = (math.sin(pygame.time.get_ticks() / 250) + 1) / 2
+        k = int(22 + 18 * pulse)
+        glow = pygame.Surface(rect.size)
+        pygame.draw.rect(glow, (k, k, int(k * 0.7)), glow.get_rect().inflate(-8, -8), border_radius=14)
+        screen.blit(glow, rect.topleft, special_flags=pygame.BLEND_RGB_ADD)
+        frame = rect.inflate(10 + 4 * pulse, 10 + 4 * pulse)
+        pygame.draw.rect(screen, (255, 215, 120), frame, 3, border_radius=16)
+
+        ui.text_shadow(screen, "Mouse or Arrow keys + Enter", 15, ui.TEXT_DIM, False,
+                       center=(screen.get_width() // 2, screen.get_height() - 24))
+
+    def draw_fallback(self, screen):
+        """Plain menu used if the title art is missing."""
         if self.bg:
             screen.blit(self.bg, (0, 0))
             ui.dim(screen, 110)
         else:
             screen.fill(ui.BG)
-
         cx = screen.get_width() // 2
-        ui.text_shadow(screen, "Turn-Based RPG", 72, ui.GOLD, center=(cx, 170))
-        ui.text_shadow(screen, "Climb five floors. Read your enemy. Survive.", 24, ui.TEXT, False, center=(cx, 240))
-
+        ui.text_shadow(screen, "Spells x Blades", 72, ui.GOLD, center=(cx, 170))
         for i, (label, _) in enumerate(self.options):
             is_quit = label == "Quit"
             ui.button(screen, self.rects[i], label, hovered=self.focus == i,
                       color=(100, 30, 30) if is_quit else None,
                       hover_color=(150, 40, 40) if is_quit else None, size=28)
-
-        ui.text(screen, "Mouse or Arrow keys + Enter", 16, ui.TEXT_DIM, center=(cx, screen.get_height() - 30))

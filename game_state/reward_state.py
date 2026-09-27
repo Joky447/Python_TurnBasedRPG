@@ -5,60 +5,62 @@ import pygame
 import assets
 import ui
 from game_state.state import GameState
-from inventory_mechanics.weapon_library import random_weapons
 from skills.skill_library import random_skills
 
-TITLE = "The Boss Awaits! Choose a Reward"
+TITLES = {"pre_boss": "The Boss Awaits! Your Rewards",
+          "boss": "Boss Defeated! Learn a Skill"}
 
 
 class RewardState(GameState):
-    """The one reward per floor, given after the fight right before the boss.
-
-    Some rewards need a second step: learning a skill asks which slot to replace,
-    and training asks which skill to upgrade.
-    """
+    """Before each boss: shows the floor's prepared item and the skill upgrade (both given
+    automatically). After each boss: a choice of new skills, which then asks which skill to replace."""
     def __init__(self, game_manager):
         super().__init__(game_manager)
         w, h = game_manager.screen.get_size()
         self.w, self.h = w, h
         self.bg = assets.load_background("map/bcgpc.png", (w, h))
         self.skip_rect = pygame.Rect(w // 2 - 90, h - 80, 180, 52)
+        self.fight_rect = pygame.Rect(w // 2 - 150, h - 84, 300, 58)
         self.options = []
         self.option_rects = []
         self.pending = None       # {"kind": "skill"/"upgrade", "skill": Skill or None}
         self.slot_rects = [pygame.Rect(w // 2 - 2 * 260 + i * 260 + 10, 330, 240, 200) for i in range(4)]
 
     # ------------------------------------------------------------------ setup
-    def enter(self, **kwargs):
+    def enter(self, mode="pre_boss", level=0, item=None, skills=(), **kwargs):
+        """mode "pre_boss": shows the two rewards already given before the boss (the floor's
+        prepared item and the skill upgrade); nothing to choose.
+        mode "boss": after a boss, a choice of 3 skills empowered to `level` (floors cleared)."""
+        self.mode, self.level = mode, level
         self.pending = None
-        self.options = self.generate_options()
+        if mode == "boss":
+            self.options = self.boss_skill_options()
+        else:
+            self.options = ([{"kind": "gift_item", "item": item}] if item else []) + \
+                           [{"kind": "gift_skills", "skills": list(skills)}]
         n = len(self.options)
-        card_w, gap = 290, 30
+        card_w, gap = (440, 40) if mode == "pre_boss" else (290, 30)
         start = (self.w - (n * card_w + (n - 1) * gap)) // 2
-        self.option_rects = [pygame.Rect(start + i * (card_w + gap), 170, card_w, 360) for i in range(n)]
+        card_h = 470 if mode == "pre_boss" else 360
+        self.option_rects = [pygame.Rect(start + i * (card_w + gap), 150, card_w, card_h) for i in range(n)]
 
-    def generate_options(self):
+    def boss_skill_options(self):
         p = self.game_manager.player
-        owned = [s.name for s in p.equipped_skills]
-        can_upgrade = any(not s.upgraded for s in p.equipped_skills)
         opts = []
-
-        def skill_opt():
-            skills = random_skills(p.char_class, 1, owned)
-            return [{"kind": "skill", "skill": skills[0]}] if skills else []
-
-        def weapon_opts(n):
-            return [{"kind": "weapon", "weapon": w} for w in random_weapons(p.char_class, n, p.weapon.name)]
-
-        upgrade = [{"kind": "upgrade"}] if can_upgrade else []
-
-        # A new skill, a new weapon, and a skill upgrade (or raw power once all are upgraded)
-        opts += skill_opt() + weapon_opts(1)
-        opts.append(random.choice(upgrade) if upgrade else {"kind": "damage", "amount": 2})
+        for skill in random_skills(p.char_class, 3, [s.name for s in p.equipped_skills]):
+            skill.empower(self.level)
+            opts.append({"kind": "skill", "skill": skill})
         return opts
 
     # ------------------------------------------------------------------ input
     def handle_events(self, events):
+        if self.mode == "pre_boss":      # nothing to pick: any click or Enter goes on to the boss
+            for event in events:
+                if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.fight_rect.collidepoint(event.pos)) \
+                        or (event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_SPACE)):
+                    self.finish()
+                    return
+            return
         for event in events:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if self.pending:
@@ -100,12 +102,7 @@ class RewardState(GameState):
             self.pending = opt
             return
         if kind == "weapon":
-            p.equip_weapon(opt["weapon"])
-        elif kind == "heal":
-            p.heal(opt["amount"])
-        elif kind == "maxhp":
-            p.max_hp += opt["amount"]
-            p.heal(opt["amount"])
+            p.equip_item(opt["weapon"])      # the old weapon goes to the inventory
         elif kind == "damage":
             p.bonus_damage += opt["amount"]
         assets.play_sound("reward")
@@ -127,31 +124,41 @@ class RewardState(GameState):
 
     def finish(self):
         self.game_manager.player.events.clear()
-        self.game_manager.reward_claimed()
+        self.game_manager.save()
+        self.game_manager.reward_claimed(self.mode)
 
     # ------------------------------------------------------------------ drawing
     def describe(self, opt):
         """Returns (title, color, body lines) for a reward card."""
         kind = opt["kind"]
+        if kind == "gift_item":
+            it = opt["item"]
+            lines = [(it.name, ui.GOLD, 26), (it.type, ui.TEXT_DIM, 18), (", ".join(it.stat_lines()), ui.TEXT, 19)]
+            if it.skills:
+                lines.append(("New skills: " + ", ".join(s.name for s in it.skills), ui.TEXT, 17))
+            lines += [(it.description, ui.TEXT_DIM, 17), ("Equipped now.", (140, 230, 140), 17)]
+            return "New Gear", ui.GOLD, lines
+        if kind == "gift_skills":
+            lines = [(f"All skills grow to floor {self.game_manager.current_floor} strength.", ui.TEXT_DIM, 17)]
+            for (name, old), (_, new) in opt["skills"]:
+                lines.append((name, ui.GOLD_LIGHT, 19))
+                lines.append((new if old == new else f"{new}   (was: {old})", ui.TEXT, 15))
+            return "Skill Upgrade", (120, 220, 255), lines
         if kind == "skill":
             s = opt["skill"]
-            return "New Skill", s.color, [(s.name, s.color, 24), (f"{s.energy_cost} Energy", ui.ENERGY, 18),
+            title = f"Skill  ·  Power {s.power}" if s.power else "New Skill"
+            return title, s.color, [(s.name, s.color, 24), (f"{s.energy_cost} Energy", ui.ENERGY, 18),
                                           (s.summary(), ui.TEXT, 18), (s.description, ui.TEXT_DIM, 16),
                                           ("Replaces one of your skills.", ui.TEXT_DIM, 16)]
         if kind == "weapon":
             w = opt["weapon"]
-            lines = [(w.name, ui.GOLD, 24), (f"+{w.stat_bonus} damage" + (f", +{w.max_hp_bonus} Max HP" if w.max_hp_bonus else ""),
-                                              ui.TEXT, 18), (w.description, ui.TEXT_DIM, 16)]
+            lines = [(w.name, ui.GOLD, 24), (", ".join(w.stat_lines()), ui.TEXT, 18), (w.description, ui.TEXT_DIM, 16)]
             lines += [(f"• {s.name}", s.color, 17) for s in w.skills]
-            lines.append(("Replaces all 4 skills.", (255, 160, 120), 15))
+            lines.append(("Equipped now. Your old weapon goes to your inventory.", (255, 160, 120), 15))
             return "Weapon", ui.GOLD, lines
         if kind == "upgrade":
             return "Train", (120, 220, 255), [("Upgrade a skill", ui.TEXT, 22),
                                                ("Its numbers improve by about a third, and it gains a +.", ui.TEXT_DIM, 17)]
-        if kind == "heal":
-            return "Heal", (90, 230, 100), [(f"Restore {opt['amount']} HP", ui.TEXT, 22)]
-        if kind == "maxhp":
-            return "Vitality", (240, 90, 90), [(f"+{opt['amount']} Max HP", ui.TEXT, 22), ("And heal that much.", ui.TEXT_DIM, 17)]
         if kind == "damage":
             return "Power", (255, 150, 60), [(f"+{opt['amount']} damage", ui.TEXT, 22), ("On every hit, permanently.", ui.TEXT_DIM, 17)]
         return kind.title(), ui.TEXT, []
@@ -165,7 +172,7 @@ class RewardState(GameState):
         mouse = pygame.mouse.get_pos()
         p = self.game_manager.player
 
-        ui.text_shadow(screen, TITLE, 44, ui.GOLD, center=(self.w // 2, 70))
+        ui.text_shadow(screen, TITLES[self.mode], 44, ui.GOLD, center=(self.w // 2, 70))
         ui.text(screen, f"HP {p.current_hp}/{p.max_hp}   ·   {p.weapon.name} (+{p.stat_bonus} dmg)", 20, ui.TEXT_DIM,
                 center=(self.w // 2, 118))
 
@@ -173,19 +180,28 @@ class RewardState(GameState):
             self.draw_slot_picker(screen, mouse)
             return
 
+        gift = self.mode == "pre_boss"
         for i, (opt, rect) in enumerate(zip(self.options, self.option_rects)):
             title, color, lines = self.describe(opt)
-            hovered = rect.collidepoint(mouse)
+            hovered = rect.collidepoint(mouse) and not gift
             r = rect.move(0, -8) if hovered else rect
             ui.panel(screen, r, (40, 40, 58) if hovered else (28, 28, 40), ui.GOLD if hovered else (150, 150, 165), 240, 14)
             pygame.draw.rect(screen, color, (r.x, r.y, r.width, 8), border_top_left_radius=14, border_top_right_radius=14)
-            ui.text(screen, f"[{i + 1}]", 16, ui.TEXT_DIM, True, topleft=(r.x + 14, r.y + 20))
+            if not gift:
+                ui.text(screen, f"[{i + 1}]", 16, ui.TEXT_DIM, True, topleft=(r.x + 14, r.y + 20))
             ui.text(screen, title, 28, color, True, midtop=(r.centerx, r.y + 18))
             y = r.y + 70
+            if opt["kind"] == "gift_item":      # the item's art
+                ui.item_icon(screen, opt["item"], pygame.Rect(r.centerx - 55, y - 4, 110, 110))
+                y += 114
             for msg, c, size in lines:
                 y = ui.text_wrapped(screen, msg, size, pygame.Rect(r.x + 20, y, r.width - 40, 200), c) + 8
 
-        ui.button(screen, self.skip_rect, "Skip  [S]", self.skip_rect.collidepoint(mouse), size=20)
+        if gift:
+            ui.button(screen, self.fight_rect, "Fight the Boss  [Enter]", self.fight_rect.collidepoint(mouse),
+                      color=(120, 40, 40), size=22)
+        else:
+            ui.button(screen, self.skip_rect, "Skip  [S]", self.skip_rect.collidepoint(mouse), size=20)
 
     def draw_slot_picker(self, screen, mouse):
         p = self.game_manager.player
