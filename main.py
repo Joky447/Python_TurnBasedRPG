@@ -17,6 +17,7 @@ def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     pygame.init()
+    
     try:
         pygame.mixer.init()
     except pygame.error:
