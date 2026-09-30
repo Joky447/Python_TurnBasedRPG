@@ -7,6 +7,7 @@ import animation
 import assets
 import ui
 from character.entity import STATUS_INFO
+from game_state.effects import skill_effects
 from game_state.game_manager import MAX_FLOOR
 from game_state.state import GameState
 from mobs_boss.enemy_library import create_enemy
@@ -31,6 +32,121 @@ class FloatingText:
         ui.text_shadow(screen, self.msg, self.size, self.color, center=(int(self.x), int(self.y)))
 
 
+# Sorcerist spells that fly out as a projectile (name -> look). Meteor falls from the sky.
+# Chain Lightning, Frost Nova and Hex have no projectile; their effect appears on the target at once.
+SPELL_STYLE = {"Fireball": "fireball", "Ignite": "fireball", "Ice Lance": "spear", "Meteor": "meteor",
+               "Toxic Cloud": "cloud", "Magic Missile": "missile"}
+NO_PROJECTILE = {"Chain Lightning", "Frost Nova", "Hex"}
+SCREEN_SHAKE = {"Meteor": 22, "Fireball": 9, "Heavy Strike": 12}
+
+
+class Projectile:
+    """An arrow or a spell flying from one fighter to the other. on_hit runs when it lands.
+    style picks the look of a spell: orb, fireball, spear (Ice Lance), meteor, cloud or missile."""
+    SPEEDS = {"orb": 1.5, "fireball": 1.2, "spear": 2.0, "meteor": 1.1, "cloud": 0.75, "missile": 1.9, "arrow": 1.5}
+
+    def __init__(self, kind, start, end, color, on_hit, style="orb", delay=0):
+        self.kind, self.start, self.end, self.color, self.on_hit = kind, start, end, color, on_hit
+        self.style = "arrow" if kind == "arrow" else style
+        self.duration = max(220, math.dist(start, end) / self.SPEEDS[self.style])
+        self.t = 0.0
+        self.delay = delay
+        self.trail = []
+
+    @property
+    def done(self):
+        return self.t >= 1
+
+    def position(self, t):
+        x = self.start[0] + (self.end[0] - self.start[0]) * t
+        y = self.start[1] + (self.end[1] - self.start[1]) * t
+        if self.style == "arrow":
+            y -= math.sin(t * math.pi) * 28      # a light arc
+        elif self.style == "cloud":
+            y -= math.sin(t * math.pi) * 40
+        elif self.style == "meteor":
+            t2 = t * t                            # speeds up as it falls
+            x = self.start[0] + (self.end[0] - self.start[0]) * t2
+            y = self.start[1] + (self.end[1] - self.start[1]) * t2
+        return x, y
+
+    def update(self, dt):
+        if self.delay > 0:
+            self.delay -= dt
+            return
+        self.t = min(1.0, self.t + dt / self.duration)
+        keep = 16 if self.style == "meteor" else 9
+        self.trail = (self.trail + [self.position(self.t)])[-keep:]
+
+    def draw(self, screen):
+        if self.delay > 0:
+            return
+        x, y = self.position(self.t)
+        if self.style == "arrow":
+            px, py = self.position(max(0.0, self.t - 0.02))
+            angle = math.atan2(y - py, x - px)
+            ux, uy = math.cos(angle), math.sin(angle)
+            nx, ny = -uy, ux
+            tail = (x - ux * 46, y - uy * 46)
+            pygame.draw.line(screen, (60, 40, 25), tail, (x, y), 5)
+            pygame.draw.line(screen, (215, 180, 120), tail, (x, y), 3)
+            head = [(x + ux * 12, y + uy * 12), (x + nx * 6, y + ny * 6), (x - nx * 6, y - ny * 6)]
+            pygame.draw.polygon(screen, (40, 40, 48), head)
+            pygame.draw.polygon(screen, (200, 205, 215), head, 1)
+            for off in (0, 9):      # fletching
+                fx, fy = tail[0] + ux * off, tail[1] + uy * off
+                pygame.draw.line(screen, (200, 60, 50), (fx, fy), (fx - ux * 8 + nx * 6, fy - uy * 8 + ny * 6), 3)
+                pygame.draw.line(screen, (200, 60, 50), (fx, fy), (fx - ux * 8 - nx * 6, fy - uy * 8 - ny * 6), 3)
+            return
+
+        n = max(1, len(self.trail))
+        if self.style == "meteor":
+            # a rock wrapped in flame, dragging a long fiery tail
+            for i, (tx, ty) in enumerate(self.trail):
+                k = (i + 1) / n
+                col = (255, int(60 + 150 * k), int(20 + 40 * k))
+                pygame.draw.circle(screen, tuple(int(c * k) for c in col), (int(tx), int(ty)), int(6 + 26 * k))
+            layer = pygame.Surface((160, 160), pygame.SRCALPHA)
+            pygame.draw.circle(layer, (255, 140, 40, 90), (80, 80), 52)
+            pygame.draw.circle(layer, (255, 200, 90, 160), (80, 80), 38)
+            pygame.draw.circle(layer, (95, 62, 48, 255), (80, 80), 27)
+            pygame.draw.circle(layer, (60, 38, 30, 255), (70, 74), 12)
+            pygame.draw.circle(layer, (255, 130, 40, 255), (92, 86), 5)
+            pygame.draw.circle(layer, (255, 130, 40, 255), (74, 90), 4)
+            screen.blit(layer, (x - 80, y - 80))
+            return
+        if self.style == "spear":
+            px, py = self.position(max(0.0, self.t - 0.02))
+            ang = math.atan2(y - py, x - px)
+            ux, uy = math.cos(ang), math.sin(ang)
+            nx, ny = -uy, ux
+            for i, (tx, ty) in enumerate(self.trail):
+                k = (i + 1) / n
+                pygame.draw.circle(screen, tuple(int(c * k) for c in (150, 215, 255)), (int(tx), int(ty)), int(2 + 5 * k))
+            pts = [(x + ux * 40, y + uy * 40), (x + nx * 9, y + ny * 9), (x - ux * 34, y - uy * 34), (x - nx * 9, y - ny * 9)]
+            pygame.draw.polygon(screen, (120, 200, 255), pts)
+            pygame.draw.polygon(screen, (235, 250, 255), pts, 2)
+            pygame.draw.line(screen, (255, 255, 255), (x - ux * 24, y - uy * 24), (x + ux * 32, y + uy * 32), 2)
+            return
+        if self.style == "cloud":
+            layer = pygame.Surface((160, 160), pygame.SRCALPHA)
+            for dx, dy, r, a in ((0, 0, 30, 150), (-22, 10, 22, 130), (20, 8, 24, 130), (4, -18, 20, 120)):
+                pygame.draw.circle(layer, (100, 200, 70, a), (80 + dx, 80 + dy), r)
+                pygame.draw.circle(layer, (170, 245, 120, a // 2), (80 + dx - 4, 80 + dy - 4), r // 2)
+            screen.blit(layer, (x - 80, y - 80))
+            return
+
+        scale = {"fireball": 1.6, "missile": 0.6}.get(self.style, 1.0)
+        for i, (tx, ty) in enumerate(self.trail):
+            k = (i + 1) / n
+            pygame.draw.circle(screen, tuple(int(c * k) for c in self.color), (int(tx), int(ty)), int((3 + 9 * k) * scale))
+        layer = pygame.Surface((120, 120), pygame.SRCALPHA)
+        for r, a in ((26, 50), (18, 110), (11, 200)):
+            pygame.draw.circle(layer, (*self.color, a), (60, 60), int(r * scale))
+        pygame.draw.circle(layer, (255, 255, 255, 255), (60, 60), max(2, int(6 * scale)))
+        screen.blit(layer, (x - 60, y - 60))
+
+
 class CombatState(GameState):
     """Turn loop: player uses skills -> End Turn -> enemy performs its shown intent -> repeat."""
     def __init__(self, game_manager):
@@ -49,9 +165,19 @@ class CombatState(GameState):
                             for i in range(4)]
         self.end_turn_rect = pygame.Rect(w - 170, self.ui_panel_rect.y + 60, 150, 70)
         self.energy_center = (85, self.ui_panel_rect.centery)
+        self.exit_rect = pygame.Rect(w - 170, 52, 150, 38)
+        self.dialog_rect = pygame.Rect(0, 0, 520, 230)
+        self.dialog_rect.center = (w // 2, h // 2 - 40)
+        self.leave_rect = pygame.Rect(0, 0, 200, 50)
+        self.leave_rect.bottomleft = (self.dialog_rect.x + 30, self.dialog_rect.bottom - 24)
+        self.stay_rect = pygame.Rect(0, 0, 200, 50)
+        self.stay_rect.bottomright = (self.dialog_rect.right - 30, self.dialog_rect.bottom - 24)
 
         self.enemy = None
         self.buttons = []
+        self.projectiles: list[Projectile] = []
+        self.fx = []                    # skill visual effects (see effects.py)
+        self.enemy_release = None       # ranged move waiting for the enemy's attack animation to let go
 
     # ------------------------------------------------------------------ setup
     def enter(self, **kwargs):
@@ -86,13 +212,17 @@ class CombatState(GameState):
         self.pending_skill = None     # skill waiting for the attack animation to connect
         self.enemy_acted = False
         self.floaters: list[FloatingText] = []
-        self.log: list[tuple[str, tuple]] = [(f"Encounter {enc.number} · {enc.title}", ui.TEXT_DIM),
+        self.log: list[tuple[str, tuple]] = [(f"Encounter {enc.number} · {enc.title}", (205, 210, 230)),
                                                  (f"{self.enemy.name} appears!", ui.GOLD)]
         self.shake = 0
         self.flash = {"hero": 0, "enemy": 0}
         self.shown_hp = {"hero": player.current_hp, "enemy": self.enemy.current_hp}
         self.enemy_alpha = 255
         self.enemy_lunge = False
+        self.projectiles = []
+        self.fx = []
+        self.enemy_release = None
+        self.confirm_exit = False
         self.status_hitboxes = []
         self.setup_buttons()
         assets.play_sound("battle_start")
@@ -104,21 +234,46 @@ class CombatState(GameState):
     # ------------------------------------------------------------------ input
     @property
     def input_locked(self):
-        return self.phase != "player" or self.pending_skill is not None or self.hero_anim.busy
+        return self.phase != "player" or self.pending_skill is not None or self.hero_anim.busy or bool(self.projectiles)
 
     def handle_events(self, events):
         for event in events:
+            if self.confirm_exit:       # warning dialog is modal
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if self.leave_rect.collidepoint(event.pos):
+                        self.game_manager.exit_fight()
+                        return
+                    if self.stay_rect.collidepoint(event.pos):
+                        self.confirm_exit = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_RETURN, pygame.K_y):
+                        self.game_manager.exit_fight()
+                        return
+                    if event.key in (pygame.K_ESCAPE, pygame.K_n):
+                        self.confirm_exit = False
+                continue
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 for i, btn in enumerate(self.buttons):
                     if btn["rect"].collidepoint(event.pos):
                         self.use_skill(i)
                 if self.end_turn_rect.collidepoint(event.pos):
                     self.end_player_turn()
+                if self.exit_rect.collidepoint(event.pos):
+                    self.request_exit()
             elif event.type == pygame.KEYDOWN:
                 if pygame.K_1 <= event.key <= pygame.K_4:
                     self.use_skill(event.key - pygame.K_1)
+                elif pygame.K_KP1 <= event.key <= pygame.K_KP4:
+                    self.use_skill(event.key - pygame.K_KP1)
+                elif event.key == pygame.K_ESCAPE:
+                    self.request_exit()
                 elif event.key in (pygame.K_e, pygame.K_SPACE, pygame.K_RETURN):
                     self.end_player_turn()
+
+    def request_exit(self):
+        """Opens the warning dialog; the fight is only left once the player confirms."""
+        if self.phase not in ("victory", "defeat"):
+            self.confirm_exit = True
 
     def use_skill(self, index):
         if self.input_locked or index >= len(self.buttons):
@@ -138,6 +293,7 @@ class CombatState(GameState):
             assets.play_sound(self.attack_sound())
         else:
             skill.execute(player, self.enemy)
+            self.fx += skill_effects(skill, self.hero_body(), self.enemy_body())
             assets.play_sound("buff")
             self.check_end()
 
@@ -148,11 +304,52 @@ class CombatState(GameState):
         kind = "sword" if player.char_class == "Swordsman" else "wand"
         return f"{kind}_{'great' if upgraded else 'basic'}"
 
+    def hero_point(self):
+        return self.hero_x + 60, self.ground_y - 250 * 0.6
+
+    def enemy_point(self):
+        return self.enemy_x - 60, self.ground_y - self.enemy.height * 0.55
+
     def resolve_pending(self):
-        if self.pending_skill:
-            self.pending_skill.execute(self.game_manager.player, self.enemy)
-            self.pending_skill = None
-            self.check_end()
+        if not self.pending_skill:
+            return
+        skill, self.pending_skill = self.pending_skill, None
+        player = self.game_manager.player
+        name = skill.name.rstrip("+")
+        if player.char_class == "Sorcerist" and name not in NO_PROJECTILE:
+            # the mage's spell flies to the enemy and lands there
+            color = skill.color if skill.element != "physical" else (190, 150, 255)
+            style = SPELL_STYLE.get(name, "orb")
+            end = self.enemy_point()
+            if style == "meteor":
+                start = (end[0] + 260, -90)        # drops from the sky
+            else:
+                start = self.hero_point()
+            if style == "missile":                  # one small missile per hit, the last one lands the skill
+                hits = max(1, skill.hits)
+                for i in range(hits):
+                    last = i == hits - 1
+                    self.projectiles.append(Projectile("magic", start, (end[0], end[1] + (i - hits / 2) * 18), color,
+                                                       (lambda: self.land_player_skill(skill)) if last else (lambda: None),
+                                                       "missile", delay=i * 130))
+            else:
+                self.projectiles.append(Projectile("magic", start, end, color,
+                                                   lambda: self.land_player_skill(skill), style))
+        else:
+            self.land_player_skill(skill)
+
+    def hero_body(self):
+        return self.hero_x, self.ground_y - 250 * 0.5
+
+    def enemy_body(self):
+        return self.enemy_x, self.ground_y - self.enemy.height * 0.5
+
+    def land_player_skill(self, skill):
+        player = self.game_manager.player
+        skill.execute(player, self.enemy)
+        self.fx += skill_effects(skill, self.hero_body(), self.enemy_body(), slash=player.char_class == "Swordsman")
+        self.shake = max(self.shake, SCREEN_SHAKE.get(skill.name.rstrip("+"), 0))
+        self.check_end()
 
     def end_player_turn(self):
         if self.input_locked:
@@ -176,15 +373,36 @@ class CombatState(GameState):
         if (move.damage or move.effects) and "attack" in self.enemy_anim.clips:
             # melee enemies dash over to the hero for attacks that deal damage
             self.enemy_lunge = bool(move.damage) and getattr(enemy, "melee", False)
-            self.enemy_anim.play("attack", on_done=lambda: self.finish_enemy_turn(move))
+            if not getattr(enemy, "melee", False):
+                # archers and casters let go of an arrow or spell partway through the attack
+                self.enemy_release = move
+                self.enemy_anim.play("attack", on_done=lambda: self.release_enemy_shot(move))
+            else:
+                self.enemy_anim.play("attack", on_done=lambda: self.finish_enemy_turn(move))
         else:
             self.finish_enemy_turn(move)
+
+    def release_enemy_shot(self, move):
+        """Fires the enemy's arrow or spell at the hero once; the move lands when it arrives."""
+        if self.enemy_release is not move:
+            return
+        self.enemy_release = None
+        if not (move.damage or move.effects):       # buffs, blocks and heals have nothing to fire
+            self.finish_enemy_turn(move)
+            return
+        if "Archer" in self.enemy.name:
+            kind, color = "arrow", (215, 180, 120)
+        else:
+            kind, color = "magic", move.color if move.element != "physical" else (190, 150, 255)
+        self.projectiles.append(Projectile(kind, self.enemy_point(), (self.hero_x, self.ground_y - 250 * 0.55), color,
+                                           lambda: self.finish_enemy_turn(move)))
 
     def finish_enemy_turn(self, move):
         player = self.game_manager.player
         if self.phase != "enemy":
             return
         move.execute(self.enemy, player)
+        self.fx += skill_effects(move, self.enemy_body(), self.hero_body(), slash=getattr(self.enemy, "melee", False))
         self.enemy.intent = None
         if self.check_end():
             return
@@ -216,6 +434,17 @@ class CombatState(GameState):
         # The player's swing lands a little past half-way through the animation
         if self.pending_skill and self.hero_anim.progress() >= 0.6:
             self.resolve_pending()
+        if self.enemy_release and self.enemy_anim.current == "attack" and self.enemy_anim.progress() >= 0.55:
+            self.release_enemy_shot(self.enemy_release)
+        for e in self.fx:
+            e.update(dt)
+        self.fx = [e for e in self.fx if e.alive]
+        for proj in self.projectiles:
+            proj.update(self.game_manager.dt)
+        landed = [pr for pr in self.projectiles if pr.done]
+        self.projectiles = [pr for pr in self.projectiles if not pr.done]
+        for pr in landed:
+            pr.on_hit()
 
         if self.phase == "enemy" and not self.enemy_acted:
             self.phase_timer += dt
@@ -316,6 +545,10 @@ class CombatState(GameState):
 
         self.draw_hero(world, player)
         self.draw_enemy(world)
+        for proj in self.projectiles:
+            proj.draw(world)
+        for e in self.fx:
+            e.draw(world)
         for f in self.floaters:
             f.draw(world)
 
@@ -326,12 +559,32 @@ class CombatState(GameState):
         self.draw_bottom_panel(screen, player, mouse)
         self.draw_log(screen)
         self.draw_turn_banner(screen)
-        self.draw_tooltips(screen, player, mouse)
+        if self.phase not in ("victory", "defeat"):
+            ui.button(screen, self.exit_rect, "Exit Fight [Esc]", self.exit_rect.collidepoint(mouse), True, size=15)
+        if self.confirm_exit:
+            self.draw_exit_dialog(screen, mouse)
+        else:
+            self.draw_tooltips(screen, player, mouse)
 
         if self.phase in ("victory", "defeat") and self.phase_timer > 400:
             ui.dim(screen, min(140, int((self.phase_timer - 400) * 0.3)))
             msg, color = ("VICTORY!", ui.GOLD) if self.phase == "victory" else ("DEFEATED", ui.RED)
             ui.text_shadow(screen, msg, 80, color, center=(self.w // 2, self.h // 2 - 120))
+
+    def draw_exit_dialog(self, screen, mouse):
+        ui.dim(screen, 150)
+        r = self.dialog_rect
+        ui.panel(screen, r, (26, 20, 20), ui.GOLD, 245, 10)
+        ui.text_shadow(screen, "Leave the fight?", 32, (255, 140, 120), center=(r.centerx, r.y + 38))
+        if self.rematch:
+            msg = "This rematch will count as a loss. Nothing else is lost."
+        else:
+            msg = (f"Floor {self.floor}'s progress will be reset and you'll start again "
+                   "from its first fight. Cleared floors and items are kept.")
+        ui.text_wrapped(screen, msg, 18, pygame.Rect(r.x + 30, r.y + 70, r.width - 60, 80), ui.TEXT)
+        ui.button(screen, self.leave_rect, "Leave [Enter]", self.leave_rect.collidepoint(mouse), True,
+                  (150, 40, 40), (200, 50, 50), 19)
+        ui.button(screen, self.stay_rect, "Keep Fighting [Esc]", self.stay_rect.collidepoint(mouse), True, size=17)
 
     def draw_hero(self, screen, player):
         x = self.hero_x
@@ -440,7 +693,7 @@ class CombatState(GameState):
 
     def draw_log(self, screen):
         rect = pygame.Rect(16, 16, 360, 26 + 22 * len(self.log))
-        ui.panel(screen, rect, (10, 10, 16), None, 150, 8)
+        ui.panel(screen, rect, (10, 10, 16), None, 185, 8)
         y = rect.y + 12
         for i, (msg, color) in enumerate(self.log):
             faded = tuple(int(c * (0.5 + 0.5 * (i + 1) / len(self.log))) for c in color)

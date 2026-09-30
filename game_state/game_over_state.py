@@ -12,8 +12,8 @@ class GameOverState(GameState):
         w, h = game_manager.screen.get_size()
         self.w, self.h = w, h
         self.bg = assets.load_background("map/bcgpc.png", (w, h))
-        self.btn_retry = pygame.Rect(w // 2 - 250, h - 150, 230, 64)
-        self.btn_menu = pygame.Rect(w // 2 + 20, h - 150, 230, 64)
+        self.btn_retry = pygame.Rect(w // 2 - 290, h - 150, 270, 64)
+        self.btn_menu = pygame.Rect(w // 2 + 20, h - 150, 270, 64)
         self.victory = False
 
     def enter(self, victory=False, **kwargs):

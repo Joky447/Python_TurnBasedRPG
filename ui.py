@@ -376,3 +376,33 @@ def dim_rect(screen, rect, alpha=150):
     overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
     overlay.fill((0, 0, 0, alpha))
     screen.blit(overlay, rect.topleft)
+
+
+def pill_button(screen, rect, label, hovered=False, icon="gear", alpha=170):
+    """Small pill-shaped button: an icon followed by its label."""
+    layer = pygame.Surface(rect.size, pygame.SRCALPHA)
+    pygame.draw.rect(layer, (10, 20, 45, alpha + 40 if hovered else alpha), layer.get_rect(), border_radius=rect.height // 2)
+    pygame.draw.rect(layer, GOLD_LIGHT if hovered else GOLD, layer.get_rect(), 2, border_radius=rect.height // 2)
+    screen.blit(layer, rect.topleft)
+    color = GOLD_LIGHT if hovered else TEXT
+    r = rect.height // 2 - 8
+    cx, cy = rect.x + rect.height // 2 + 2, rect.centery
+    if icon == "gear":
+        for i in range(8):
+            a = i * math.pi / 4
+            pygame.draw.line(screen, color, (cx + math.cos(a) * r * 0.6, cy + math.sin(a) * r * 0.6),
+                             (cx + math.cos(a) * r * 1.15, cy + math.sin(a) * r * 1.15), max(3, r // 3))
+        pygame.draw.circle(screen, color, (cx, cy), int(r * 0.85))
+        pygame.draw.circle(screen, (10, 20, 45), (cx, cy), int(r * 0.35))
+    else:   # "star": four-point sparkle
+        pts = []
+        for i in range(8):
+            a = i * math.pi / 4 - math.pi / 2
+            d = r * 1.2 if i % 2 == 0 else r * 0.45
+            pts.append((cx + math.cos(a) * d, cy + math.sin(a) * d))
+        pygame.draw.polygon(screen, color, pts)
+    text_shadow(screen, label, 18, color, midleft=(rect.x + rect.height + 2, rect.centery))
+
+
+def gear_button(screen, rect, label="Settings", hovered=False, alpha=170):
+    pill_button(screen, rect, label, hovered, "gear", alpha)

@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spells x Blades — Wiki</title>
+<style>
+:root {
+  --bg: #0a1230; --bg2: #0e1a44; --panel: #12224f; --panel2: #182c62; --line: #3a4b80;
+  --gold: #f0c462; --gold-light: #ffecb0; --text: #f4eee0; --dim: #aab3cf; --code: #0a1330;
+  --blue: #8fc3ff; --side: 290px;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f5f1e6; --bg2: #ebe4d1; --panel: #ffffff; --panel2: #f0ead8; --line: #cfc5a8; --gold: #8a5a10;
+    --gold-light: #6b4306; --text: #221d12; --dim: #6a624c; --code: #efe8d4; --blue: #1f5fa8;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f5f1e6; --bg2: #ebe4d1; --panel: #ffffff; --panel2: #f0ead8; --line: #cfc5a8; --gold: #8a5a10;
+  --gold-light: #6b4306; --text: #221d12; --dim: #6a624c; --code: #efe8d4; --blue: #1f5fa8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.65 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  background-image: radial-gradient(1200px 500px at 70% -10%, var(--bg2), transparent);
+  background-repeat: no-repeat;
+}
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---- layout ---- */
+.side {
+  position: fixed; inset: 0 auto 0 0; width: var(--side); overflow-y: auto; padding: 26px 18px 40px;
+  background: var(--panel); border-right: 1px solid var(--line); z-index: 20;
+}
+.brand { font: 700 22px/1.2 Georgia, Cambria, serif; color: var(--gold); margin: 0 6px 4px; }
+.brand-sub { color: var(--dim); font-size: 13px; margin: 0 6px 18px; }
+.side nav a {
+  display: block; padding: 7px 12px; margin: 2px 0; border-radius: 8px; color: var(--dim); font-size: 14.5px;
+  border-left: 3px solid transparent;
+}
+.side nav a:hover { background: var(--panel2); color: var(--text); text-decoration: none; }
+.side nav a.active { background: var(--panel2); color: var(--gold-light); border-left-color: var(--gold); }
+.theme-btn {
+  margin: 18px 6px 0; padding: 7px 12px; width: calc(100% - 12px); background: transparent; color: var(--dim);
+  border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px;
+}
+.theme-btn:hover { color: var(--text); border-color: var(--gold); }
+main { margin-left: var(--side); padding: 56px 48px 80px; }
+.page { max-width: 900px; margin: 0 auto; }
+
+/* ---- hero ---- */
+.hero { padding: 6px 0 30px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.hero h1 {
+  font: 700 clamp(34px, 5vw, 52px)/1.1 Georgia, Cambria, serif; color: var(--gold); margin: 0 0 14px;
+  letter-spacing: .5px;
+}
+.hero p { font-size: 18px; color: var(--dim); margin: 0; }
+
+/* ---- content ---- */
+h2 {
+  font: 700 29px/1.25 Georgia, Cambria, serif; color: var(--gold); margin: 54px 0 14px; padding-bottom: 10px;
+  border-bottom: 2px solid var(--line);
+}
+h3 { font: 700 19px/1.3 "Segoe UI", system-ui, sans-serif; color: var(--gold-light); margin: 30px 0 8px; }
+p { margin: 10px 0; }
+ul, ol { padding-left: 1.4em; margin: 10px 0; }
+li { margin: 5px 0; }
+li::marker { color: var(--gold); }
+strong { color: var(--gold-light); }
+em { color: var(--text); }
+hr { border: 0; height: 1px; background: var(--line); margin: 0; opacity: .0; }
+code {
+  font: 0.9em/1.4 "Cascadia Mono", Consolas, "SF Mono", monospace; background: var(--code); color: var(--gold-light);
+  padding: 2px 6px; border-radius: 5px; border: 1px solid var(--line);
+}
+pre {
+  background: var(--code); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; overflow-x: auto;
+  margin: 14px 0; line-height: 1.5;
+}
+pre code { background: none; border: 0; padding: 0; color: var(--text); font-size: 13.5px; }
+.table-wrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th {
+  background: var(--panel2); color: var(--gold); text-align: left; font-weight: 700; white-space: nowrap;
+  padding: 11px 14px; border-bottom: 2px solid var(--gold);
+}
+td { padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel2) 45%, transparent); }
+tbody tr:hover td { background: var(--panel2); }
+h2 .anchor, h3 .anchor { opacity: 0; margin-left: 8px; font-size: .7em; color: var(--dim); }
+h2:hover .anchor, h3:hover .anchor { opacity: 1; }
+footer { margin-top: 70px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--dim); font-size: 13.5px; }
+
+/* ---- small screens ---- */
+.menu-btn {
+  display: none; position: fixed; top: 12px; left: 12px; z-index: 30; padding: 9px 14px; border-radius: 10px;
+  background: var(--panel); color: var(--gold); border: 1px solid var(--line); font: 600 14px "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+@media (max-width: 900px) {
+  .menu-btn { display: block; }
+  .side { transform: translateX(-100%); transition: transform .2s; box-shadow: 0 0 40px #0008; }
+  body.open .side { transform: none; }
+  main { margin-left: 0; padding: 70px 20px 60px; }
+}
+@media print {
+  .side, .menu-btn { display: none; }
+  main { margin: 0; padding: 0; }
+  :root { --bg: #fff; --panel: #fff; --panel2: #eee; --text: #000; --dim: #444; --gold: #7a4b00; --gold-light: #000;
+          --line: #999; --code: #f3f3f3; --blue: #003b8e; }
+  body { background: #fff; }
+}
+</style>
+</head>
+<body>
+<button class="menu-btn" type="button">&#9776; Menu</button>
+<aside class="side">
+  <div class="brand">Spells x Blades</div>
+  <div class="brand-sub">Game wiki</div>
+  <nav>
+<a href="#getting-started">Getting Started</a>
+<a href="#game-overview">Game Overview</a>
+<a href="#controls">Controls</a>
+<a href="#characters">Characters</a>
+<a href="#combat-system">Combat System</a>
+<a href="#world-map--floors">World Map &amp; Floors</a>
+<a href="#skills">Skills</a>
+<a href="#equipment">Equipment</a>
+<a href="#enemies">Enemies</a>
+<a href="#rewards--progression">Rewards &amp; Progression</a>
+<a href="#audio">Audio</a>
+<a href="#settings">Settings</a>
+<a href="#credits">Credits</a>
+<a href="#save-system">Save System</a>
+<a href="#asset-pipeline">Asset Pipeline</a>
+<a href="#project-structure">Project Structure</a>
+<a href="#tips--strategies">Tips &amp; Strategies</a>
+  </nav>
+  <button class="theme-btn" type="button">Toggle light / dark</button>
+</aside>
+<main>
+  <div class="page">
+    <header class="hero">
+      <h1>Spells x Blades — Wiki</h1>
+      <p>A 2D turn-based RPG built with Python and Pygame. Battle through 5 themed floors, build a roster of heroes, grow your skills and gear, and defeat each floor's boss to unlock the next.</p>
+    </header>
+
+
+
+
+
+<h2 id="getting-started">Getting Started<a class="anchor" href="#getting-started" title="Permanent link">#</a></h2>
+<h3 id="requirements">Requirements<a class="anchor" href="#requirements" title="Permanent link">#</a></h3>
+<ul>
+<li>Python 3.x</li>
+<li>Pygame Community Edition (<code>pip install pygame-ce</code>)</li>
+</ul>
+<h3 id="running-the-game">Running the Game<a class="anchor" href="#running-the-game" title="Permanent link">#</a></h3>
+<pre><code class="language-bash">python main.py
+</code></pre>
+
+<h2 id="game-overview">Game Overview<a class="anchor" href="#game-overview" title="Permanent link">#</a></h2>
+<p><strong>Spells x Blades</strong> is a turn-based RPG where you build a roster of up to 2 heroes and fight through 5 floors of increasingly tough enemies. Each floor is a chain of fights that ends with a boss. Beat the boss to open the next floor and grow stronger.</p>
+<h3 id="core-loop">Core Loop<a class="anchor" href="#core-loop" title="Permanent link">#</a></h3>
+<ol>
+<li><strong>Create</strong> a character (name, gender, class) and go to Base Camp</li>
+<li><strong>Begin the adventure</strong> and fight through a floor's encounters, one after another</li>
+<li><strong>Receive</strong> the floor's gear and a skill upgrade right before the boss</li>
+<li><strong>Defeat</strong> the boss and <strong>learn a new skill</strong></li>
+<li><strong>Repeat</strong> on the next floor, up to floor 5</li>
+</ol>
+
+<h2 id="controls">Controls<a class="anchor" href="#controls" title="Permanent link">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Where</th>
+<th>Input</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Everywhere</td>
+<td><strong>F11</strong> or <strong>Alt+Enter</strong></td>
+<td>Toggle fullscreen</td>
+</tr>
+<tr>
+<td>Main menu</td>
+<td>Mouse, or Up/Down + Enter</td>
+<td>Choose an option</td>
+</tr>
+<tr>
+<td>Main menu</td>
+<td><strong>C</strong> / <strong>O</strong></td>
+<td>Credits / Settings</td>
+</tr>
+<tr>
+<td>World map</td>
+<td><strong>Enter</strong></td>
+<td>Open the floor's fight list, then start the next fight</td>
+</tr>
+<tr>
+<td>World map</td>
+<td><strong>B</strong></td>
+<td>Go to Base Camp (asks to confirm if the floor would reset)</td>
+</tr>
+<tr>
+<td>Combat</td>
+<td><strong>1–4</strong> (top row or numpad)</td>
+<td>Use skill 1–4</td>
+</tr>
+<tr>
+<td>Combat</td>
+<td><strong>E</strong>, <strong>Space</strong> or <strong>Enter</strong></td>
+<td>End turn</td>
+</tr>
+<tr>
+<td>Combat</td>
+<td><strong>Esc</strong></td>
+<td>Exit the fight (asks to confirm)</td>
+</tr>
+<tr>
+<td>Skill reward</td>
+<td><strong>1–3</strong>, <strong>S</strong></td>
+<td>Pick a skill, skip</td>
+</tr>
+</tbody>
+</table></div>
+
+<h2 id="characters">Characters<a class="anchor" href="#characters" title="Permanent link">#</a></h2>
+<h3 id="creation">Creation<a class="anchor" href="#creation" title="Permanent link">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Choices</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Name</strong></td>
+<td>Any name, up to 14 characters</td>
+</tr>
+<tr>
+<td><strong>Gender</strong></td>
+<td>Boy / Girl (changes the look only)</td>
+</tr>
+<tr>
+<td><strong>Class</strong></td>
+<td>Swordsman / Sorcerist</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="classes">Classes<a class="anchor" href="#classes" title="Permanent link">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Base HP</th>
+<th>Base Energy</th>
+<th>Starting weapon</th>
+<th>Starting skills</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Swordsman</strong></td>
+<td>80</td>
+<td>3</td>
+<td>Iron Sword (+2 dmg)</td>
+<td>Slash, Parry, Heavy Strike, Second Wind</td>
+</tr>
+<tr>
+<td><strong>Sorcerist</strong></td>
+<td>70</td>
+<td>3</td>
+<td>Novice Staff (+1 dmg)</td>
+<td>Fireball, Mana Shield, Magic Missile, Heal</td>
+</tr>
+</tbody>
+</table></div>
+<p>Gear adds to these stats (see <a href="#equipment">Equipment</a>).</p>
+<h3 id="roster">Roster<a class="anchor" href="#roster" title="Permanent link">#</a></h3>
+<ul>
+<li>Up to <strong>2 characters</strong> can be in your roster</li>
+<li>Each character has <strong>independent progress</strong> (items, skills, cleared floors)</li>
+<li>Switch the active character at Base Camp</li>
+<li>Deleting a character needs a second confirmation click. The active character can't be deleted</li>
+</ul>
+<h3 id="persistence">Persistence<a class="anchor" href="#persistence" title="Permanent link">#</a></h3>
+<ul>
+<li>Characters <strong>keep their items, skills and cleared floors</strong> even after dying</li>
+<li>Only the <strong>current floor's unfinished progress</strong> resets</li>
+</ul>
+
+<h2 id="combat-system">Combat System<a class="anchor" href="#combat-system" title="Permanent link">#</a></h2>
+<p>You and the enemy take turns. On your turn you spend energy on skills, then end your turn and the enemy acts.</p>
+<h3 id="energy">Energy<a class="anchor" href="#energy" title="Permanent link">#</a></h3>
+<ul>
+<li>Your energy <strong>refills to your maximum at the start of every turn</strong> (3 by default; some gear adds more)</li>
+<li>Every skill has an energy cost. Unused energy does <strong>not</strong> carry over</li>
+</ul>
+<h3 id="block">Block<a class="anchor" href="#block" title="Permanent link">#</a></h3>
+<ul>
+<li>Block absorbs incoming damage before HP</li>
+<li>Block <strong>expires at the start of that fighter's own next turn</strong></li>
+<li>Some gear gives free Block at the start of each of your turns</li>
+</ul>
+<h3 id="status-effects">Status Effects<a class="anchor" href="#status-effects" title="Permanent link">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Effect</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Burn</strong></td>
+<td>At turn start, takes damage equal to its stacks (ignores Block), then loses 1 stack</td>
+</tr>
+<tr>
+<td><strong>Poison</strong></td>
+<td>Works the same as Burn (a different color, and some enemies and skills favour it)</td>
+</tr>
+<tr>
+<td><strong>Weak</strong></td>
+<td>Deals 25% less damage. Lasts that many turns</td>
+</tr>
+<tr>
+<td><strong>Vulnerable</strong></td>
+<td>Takes 50% more damage. Lasts that many turns</td>
+</tr>
+<tr>
+<td><strong>Strength</strong></td>
+<td>Deals +1 damage per stack. Lasts the whole fight</td>
+</tr>
+</tbody>
+</table></div>
+<p>Hover a status icon in combat to read it.</p>
+<h3 id="multi-hit-attacks">Multi-Hit Attacks<a class="anchor" href="#multi-hit-attacks" title="Permanent link">#</a></h3>
+<p>Some skills hit several times (shown as <code>Deal 7 x3</code>). Each hit is calculated separately, including Block absorption. There are no random critical hits.</p>
+<h3 id="enemy-intent">Enemy Intent<a class="anchor" href="#enemy-intent" title="Permanent link">#</a></h3>
+<p>Enemies show their <strong>next action</strong> above their head: icons for attack, defend, heal, buff or debuff, plus the damage number for attacks (already adjusted for Weak and Vulnerable). Hover it for the move's name and details. The enemy then does exactly that.</p>
+<h3 id="ending-a-fight">Ending a Fight<a class="anchor" href="#ending-a-fight" title="Permanent link">#</a></h3>
+<ul>
+<li><strong>Victory:</strong> the enemy is defeated</li>
+<li><strong>Defeat:</strong> your HP reaches 0 and the Game Over screen appears</li>
+<li><strong>Exit Fight:</strong> the button at the top right (or Esc). A warning dialog asks you to confirm before leaving (see <a href="#run-structure">Run Structure</a>)</li>
+</ul>
+
+<h2 id="world-map--floors">World Map &amp; Floors<a class="anchor" href="#world-map--floors" title="Permanent link">#</a></h2>
+<h3 id="structure">Structure<a class="anchor" href="#structure" title="Permanent link">#</a></h3>
+<p>The game has <strong>5 floors</strong>. Each floor has a fixed fight order:</p>
+<ol>
+<li>Regular enemies, from weakest to strongest (by base HP)</li>
+<li>An <strong>elite</strong> (floors 3, 4 and 5 only)</li>
+<li>The <strong>boss</strong></li>
+</ol>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Floor</th>
+<th>Theme</th>
+<th>Fights</th>
+<th>Boss</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Goblins</td>
+<td>3</td>
+<td>Goblin Shaman</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Castle</td>
+<td>4</td>
+<td>The Iron Paladin</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Frost</td>
+<td>5</td>
+<td>Glacius, the Frost King</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Grove</td>
+<td>6</td>
+<td>Sylvara, Queen of the Grove</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Inferno</td>
+<td>7</td>
+<td>Ignis, the Demon Lord</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="floor-unlocking">Floor Unlocking<a class="anchor" href="#floor-unlocking" title="Permanent link">#</a></h3>
+<ul>
+<li>Floors unlock <strong>in order</strong>: beat a floor's boss to open the next</li>
+<li>Cleared floors are marked with a green check on the map</li>
+</ul>
+<h3 id="run-structure">Run Structure<a class="anchor" href="#run-structure" title="Permanent link">#</a></h3>
+<ul>
+<li>A "run" starts at the <strong>first uncleared floor</strong></li>
+<li>Fights are <strong>continuous</strong>: after each win the next fight starts straight away, up to the boss. Your HP carries over from fight to fight; only the pre-boss reward screen interrupts the chain</li>
+<li><strong>Exit Fight</strong> in combat (with a confirmation dialog) sends the floor back to its first fight, restores your HP and returns you to the map. In a rematch, exiting just counts as a loss</li>
+<li>Leaving for Base Camp mid-floor also resets that floor's progress, and asks for a second click first. Items, skills and cleared floors are kept</li>
+<li>You get a <strong>full heal</strong> between floors and when returning to camp</li>
+</ul>
+<h3 id="rematches-and-free-play">Rematches and Free Play<a class="anchor" href="#rematches-and-free-play" title="Permanent link">#</a></h3>
+<ul>
+<li>Click a <strong>cleared floor</strong> on the map to pick any single enemy of that floor and fight it again</li>
+<li>Rematches give <strong>no gear and no floor progress</strong>, and your HP is restored afterwards</li>
+<li>Beating a <strong>boss</strong> in a rematch offers a new skill choice</li>
+<li>After clearing all 5 floors the map enters <strong>Free Play</strong>: there is no run to continue, and you pick any floor and enemy</li>
+</ul>
+<h3 id="test-mode">Test Mode<a class="anchor" href="#test-mode" title="Permanent link">#</a></h3>
+<p>Set <code>UNLOCK_ALL_FLOORS = True</code> in <code>game_state/game_manager.py</code> to unlock every floor. Click a floor or press 1-5 to jump to it.</p>
+
+<h2 id="skills">Skills<a class="anchor" href="#skills" title="Permanent link">#</a></h2>
+<h3 id="overview">Overview<a class="anchor" href="#overview" title="Permanent link">#</a></h3>
+<p>There are <strong>27 skills</strong>: 14 for the Swordsman and 13 for the Sorcerist. You fight with <strong>4 skills at a time</strong>, and they belong to your equipped <strong>weapon</strong> (learned and empowered skills stay on that weapon if you swap it out).</p>
+<h3 id="swordsman-skills">Swordsman Skills<a class="anchor" href="#swordsman-skills" title="Permanent link">#</a></h3>
+<p>Slash, Parry, Heavy Strike, Second Wind, Twin Cut, Shield Bash, Sunder, Battle Cry, Flame Slash, Frost Edge, Venom Stab, Whirlwind, Iron Wall, Holy Blade</p>
+<h3 id="sorcerist-skills">Sorcerist Skills<a class="anchor" href="#sorcerist-skills" title="Permanent link">#</a></h3>
+<p>Fireball, Mana Shield, Magic Missile, Heal, Ignite, Frost Nova, Ice Lance, Toxic Cloud, Hex, Arcane Surge, Chain Lightning, Meteor, Radiance</p>
+<h3 id="skill-properties">Skill Properties<a class="anchor" href="#skill-properties" title="Permanent link">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Cost</strong></td>
+<td>Energy needed to use it (1–3)</td>
+</tr>
+<tr>
+<td><strong>Damage</strong></td>
+<td>Damage per hit (your damage bonus and Strength are added)</td>
+</tr>
+<tr>
+<td><strong>Hits</strong></td>
+<td>Number of hits</td>
+</tr>
+<tr>
+<td><strong>Block / Heal</strong></td>
+<td>Block gained or HP restored</td>
+</tr>
+<tr>
+<td><strong>Effects</strong></td>
+<td>Statuses put on the enemy (Burn, Poison, Weak, Vulnerable)</td>
+</tr>
+<tr>
+<td><strong>Self effects</strong></td>
+<td>Statuses you gain (Strength)</td>
+</tr>
+<tr>
+<td><strong>Element</strong></td>
+<td>Physical, Fire, Ice, Poison, Arcane or Holy. Only changes the card's color</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="skill-empowerment">Skill Empowerment<a class="anchor" href="#skill-empowerment" title="Permanent link">#</a></h3>
+<ul>
+<li>Empowering to floor level <em>N</em> multiplies damage, Block and healing by <strong>(1 + 0.3 × N)</strong> compared to the base skill</li>
+<li>It also adds <strong>+1 effect stack for every 2 levels</strong></li>
+<li>Empowerment is permanent for that weapon's skill</li>
+</ul>
+<h3 id="skill-acquisition">Skill Acquisition<a class="anchor" href="#skill-acquisition" title="Permanent link">#</a></h3>
+<ul>
+<li><strong>Before each boss:</strong> all 4 of your skills are empowered to the current floor's level</li>
+<li><strong>After each boss:</strong> choose 1 of 3 random skills from your class pool (never ones you already have), empowered to the cleared floor's level, and pick which of your 4 skills it replaces. You can skip</li>
+<li><strong>Boss rematches:</strong> the same choice, empowered to your furthest cleared floor</li>
+</ul>
+
+<h2 id="equipment">Equipment<a class="anchor" href="#equipment" title="Permanent link">#</a></h2>
+<h3 id="gear-slots">Gear Slots<a class="anchor" href="#gear-slots" title="Permanent link">#</a></h3>
+<p>Each character has <strong>5 slots</strong>: <strong>Helmet, Armor, Weapon, Shield, Wings</strong>. Gear can add:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Stat</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Damage</td>
+<td>Added to every hit</td>
+</tr>
+<tr>
+<td>Max HP</td>
+<td>More health</td>
+</tr>
+<tr>
+<td>Energy</td>
+<td>More energy each turn</td>
+</tr>
+<tr>
+<td>Block per turn</td>
+<td>Block gained at the start of each of your turns</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="floor-gear">Floor Gear<a class="anchor" href="#floor-gear" title="Permanent link">#</a></h3>
+<p>Each floor's boss has a prepared reward, given automatically <strong>before the boss fight</strong> and <strong>equipped straight away</strong> (the piece it replaces goes to the inventory). It is class-specific:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Floor</th>
+<th>Swordsman (Aurora Knight set)</th>
+<th>Sorcerist (Astral Sage set)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Aurora Greatsword (weapon)</td>
+<td>Astral Wand (weapon)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Aurora Plate (armor)</td>
+<td>Astral Robes (armor)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Aurora Helm (helmet; a mask for girls)</td>
+<td>Astral Mask (helmet)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Aurora Aegis (shield)</td>
+<td>Astral Aura (shield)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Aurora Wings (wings)</td>
+<td>Astral Scythe (weapon, final form)</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>A character never receives the same item twice</li>
+<li>Set pieces only work while the set's weapon is equipped. With the starting weapon they give no stats and no visual outfit</li>
+<li>The character's on-screen outfit grows piece by piece as the set is collected</li>
+</ul>
+<h3 id="inventory">Inventory<a class="anchor" href="#inventory" title="Permanent link">#</a></h3>
+<ul>
+<li>Swapped-out gear goes to the <strong>inventory</strong>; it is kept even if you die</li>
+<li>Click an item to equip it, or click an equipped slot to unequip it</li>
+<li>The <strong>weapon can't be unequipped</strong>, only swapped for another weapon, because your skills come from it</li>
+</ul>
+
+<h2 id="enemies">Enemies<a class="anchor" href="#enemies" title="Permanent link">#</a></h2>
+<h3 id="overview_1">Overview<a class="anchor" href="#overview_1" title="Permanent link">#</a></h3>
+<p>There are <strong>25 enemies</strong> across the 5 floors: 17 regular enemies, 3 elites (floors 3–5) and 5 bosses.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Floor</th>
+<th>Regular enemies</th>
+<th>Elite</th>
+<th>Boss</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Goblin, Goblin Archer</td>
+<td>—</td>
+<td>Goblin Shaman</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Castle Archer, Knight, Castle Priest</td>
+<td>—</td>
+<td>The Iron Paladin</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Frostbite Goblin, Ice Archer, Frost Knight</td>
+<td>Snow Witch</td>
+<td>Glacius, the Frost King</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Thorn Sprite, Mushroom Brute, Crystal Golem, Forest Druid</td>
+<td>Treant Guardian</td>
+<td>Sylvara, Queen of the Grove</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Magma Imp, Cinder Stalker, Ash Archer, Obsidian Knight, Flame Priest</td>
+<td>Infernal Warlord</td>
+<td>Ignis, the Demon Lord</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="scaling">Scaling<a class="anchor" href="#scaling" title="Permanent link">#</a></h3>
+<p>Enemies grow with the floor number and with their position in the floor's fight order. Their HP goes up by 25% per floor and by 8% per later fight. Their damage bonus goes up by 1 per floor and by 1 per later fight. Bosses scale with the floor only.</p>
+<h3 id="behavior">Behavior<a class="anchor" href="#behavior" title="Permanent link">#</a></h3>
+<ul>
+<li>Each enemy has a small set of moves and shows its next one (see <a href="#enemy-intent">Enemy Intent</a>)</li>
+<li>Regular enemies pick a <strong>random</strong> move, never the same one three times in a row</li>
+<li>All elites and bosses follow a <strong>fixed cycle</strong>, so their pattern can be learned</li>
+<li>Melee enemies dash to your hero when they attack</li>
+</ul>
+
+<h2 id="rewards--progression">Rewards &amp; Progression<a class="anchor" href="#rewards--progression" title="Permanent link">#</a></h2>
+<h3 id="before-the-boss-automatic">Before the Boss (Automatic)<a class="anchor" href="#before-the-boss-automatic" title="Permanent link">#</a></h3>
+<ol>
+<li><strong>Floor gear</strong>, equipped immediately</li>
+<li><strong>Skill empowerment</strong>: all 4 skills grow to this floor's level</li>
+</ol>
+<p>Click <strong>Fight the Boss</strong> (or press Enter) to continue.</p>
+<h3 id="after-the-boss-choice">After the Boss (Choice)<a class="anchor" href="#after-the-boss-choice" title="Permanent link">#</a></h3>
+<ul>
+<li>3 random skills from your class pool, empowered to the cleared floor's level</li>
+<li>Pick one, then choose which skill it replaces, or skip</li>
+</ul>
+<h3 id="rematch-rewards">Rematch Rewards<a class="anchor" href="#rematch-rewards" title="Permanent link">#</a></h3>
+<p>Only a boss rematch gives a reward: another skill choice at your furthest cleared floor's level.</p>
+
+<h2 id="audio">Audio<a class="anchor" href="#audio" title="Permanent link">#</a></h2>
+<h3 id="music">Music<a class="anchor" href="#music" title="Permanent link">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Track</th>
+<th>When played</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Teller of the Tales</td>
+<td>Title screen</td>
+</tr>
+<tr>
+<td>That Zen Moment</td>
+<td>World map</td>
+</tr>
+<tr>
+<td>Darkling</td>
+<td>Regular fights</td>
+</tr>
+<tr>
+<td>Burnt Spirit</td>
+<td>Final boss (floor 5)</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>Tracks <strong>loop</strong> and fade between screens</li>
+</ul>
+<h3 id="sound-effects">Sound Effects<a class="anchor" href="#sound-effects" title="Permanent link">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>SFX</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sword (basic / great)</td>
+<td>Swordsman attacks. The great sword sound plays once you own a better weapon</td>
+</tr>
+<tr>
+<td>Wand (basic / great)</td>
+<td>Sorcerist attacks, same rule</td>
+</tr>
+<tr>
+<td>Victory / Defeat</td>
+<td>End of a fight</td>
+</tr>
+</tbody>
+</table></div>
+<p>The game also asks for <code>battle_start</code>, <code>hit</code>, <code>block</code>, <code>buff</code> and <code>reward</code> sounds. They play only if matching <code>.wav</code>, <code>.ogg</code> or <code>.mp3</code> files are placed in a <code>sounds/</code> folder, and are silent otherwise.</p>
+<ul>
+<li>The great sword and great wand sounds are trimmed to a maximum play time so they don't overlap</li>
+<li><strong>Graceful degradation:</strong> the game runs silently if there is no audio device</li>
+</ul>
+<h3 id="music-credit">Music Credit<a class="anchor" href="#music-credit" title="Permanent link">#</a></h3>
+<p>Music by Kevin MacLeod (incompetech.com): "Teller of the Tales", "Darkling", "Burnt Spirit" and "That Zen Moment". Licensed under Creative Commons: By Attribution 4.0 License (http://creativecommons.org/licenses/by/4.0/). This is also shown on the in-game credits screen.</p>
+
+<h2 id="settings">Settings<a class="anchor" href="#settings" title="Permanent link">#</a></h2>
+<p>Open from the <strong>Settings</strong> button on the main menu (bottom right, or <strong>O</strong>) or on the world map (bottom left). Esc goes back.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Music</strong></td>
+<td>Volume slider, 0–100%, applies immediately</td>
+</tr>
+<tr>
+<td><strong>Sound Effects</strong></td>
+<td>Volume slider, 0–100% (plays a test sound when changed)</td>
+</tr>
+<tr>
+<td><strong>Fullscreen</strong></td>
+<td>On/off, same as F11</td>
+</tr>
+</tbody>
+</table></div>
+<p>Drag sliders with the mouse, or pick with Up/Down and change with Left/Right. Settings are saved to <code>settings.json</code> and applied on the next launch. The window is resizable and scales to fit, with black bars on non-16:9 windows.</p>
+
+<h2 id="credits">Credits<a class="anchor" href="#credits" title="Permanent link">#</a></h2>
+<p><strong>Credits</strong> on the main menu (bottom left, or <strong>C</strong>) shows the development team as role cards, plus the music credit. The names are in the <code>TEAM</code> list at the top of <code>game_state/credits_state.py</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Team</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Project Lead</td>
+<td>Bernce Joseph E. Borabo</td>
+</tr>
+<tr>
+<td>DevOps Engineer</td>
+<td>Demel M. Vivares Jr.</td>
+</tr>
+<tr>
+<td>Character Design and Development</td>
+<td>Claude Emil A. Lorejo and AJ Nathaniel Manisan</td>
+</tr>
+<tr>
+<td>Menu and UI</td>
+<td>Stephanie E. Marapao and Aloha Jean C. Lapiz</td>
+</tr>
+<tr>
+<td>Map Design</td>
+<td>Steven Jey G. Decenan and Cedrick Samonte</td>
+</tr>
+<tr>
+<td>Mobs and Boss</td>
+<td>Belle Brainner B. Villagonzalo and Neil Bryan C. Cagadas</td>
+</tr>
+<tr>
+<td>QA, Game Tester &amp; Sound Effects</td>
+<td>Cliff Harry E. Paran and Levon Jenu V. Lacia</td>
+</tr>
+<tr>
+<td>Inventory &amp; Mechanics</td>
+<td>Rynz Karl J. Cebua and Lyster Loyd C. Cabillas</td>
+</tr>
+<tr>
+<td>Skills</td>
+<td>Mhike Clifford D. Boniao</td>
+</tr>
+</tbody>
+</table></div>
+
+<h2 id="save-system">Save System<a class="anchor" href="#save-system" title="Permanent link">#</a></h2>
+<h3 id="files">Files<a class="anchor" href="#files" title="Permanent link">#</a></h3>
+<ul>
+<li><code>save.json</code> in the project root: the roster and progress</li>
+<li><code>settings.json</code>: volume and fullscreen (see <a href="#settings">Settings</a>)</li>
+<li>Both are git-ignored and created on first use</li>
+</ul>
+<h3 id="what-is-saved">What Is Saved<a class="anchor" href="#what-is-saved" title="Permanent link">#</a></h3>
+<ul>
+<li>Active character</li>
+<li>For each character: name, gender, class, bonus damage, cleared floors, equipped items and inventory (items keep their skills, empowerment and upgrades)</li>
+<li>HP is not saved; characters start at full HP</li>
+</ul>
+<h3 id="when-it-saves">When It Saves<a class="anchor" href="#when-it-saves" title="Permanent link">#</a></h3>
+<ul>
+<li>Character creation, selection and deletion</li>
+<li>Equipment changes at Base Camp</li>
+<li>Receiving floor gear and skill empowerment before a boss</li>
+<li>Clearing a floor</li>
+<li>Claiming or skipping a skill reward</li>
+<li>Returning to Base Camp</li>
+</ul>
+<h3 id="save-migration">Save Migration<a class="anchor" href="#save-migration" title="Permanent link">#</a></h3>
+<ul>
+<li><code>weapon_library.py</code> has a <code>RENAMED</code> table for items renamed since older saves</li>
+<li>Items that no longer exist are dropped when an old save loads</li>
+</ul>
+
+<h2 id="asset-pipeline">Asset Pipeline<a class="anchor" href="#asset-pipeline" title="Permanent link">#</a></h2>
+<p>The project can turn hand-drawn sprite sheets into animated characters.</p>
+<h3 id="sprite-sheet-slicing-assetspy">Sprite Sheet Slicing (<code>assets.py</code>)<a class="anchor" href="#sprite-sheet-slicing-assetspy" title="Permanent link">#</a></h3>
+<ul>
+<li><strong>Grid sheets:</strong> uniform columns and rows</li>
+<li><strong>Single-row sheets:</strong> poses found automatically (<code>"auto"</code>), or cut at hand-picked x positions</li>
+<li>Every frame is scaled to the same size and cropped, and offsets keep the feet steady</li>
+</ul>
+<h3 id="background-removal">Background Removal<a class="anchor" href="#background-removal" title="Permanent link">#</a></h3>
+<ul>
+<li>Near-white pixels connected to the edge (and large enclosed areas) become transparent</li>
+<li>Results are cached in <code>cache/</code> (safe to delete; rebuilt when the art changes)</li>
+</ul>
+<h3 id="feet-alignment">Feet Alignment<a class="anchor" href="#feet-alignment" title="Permanent link">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cell</code></td>
+<td>Frames keep their position inside the sheet</td>
+</tr>
+<tr>
+<td><code>body</code></td>
+<td>Lined up on the character's own feet, ignoring glowing effects</td>
+</tr>
+<tr>
+<td><code>body-wide</code></td>
+<td>Same, using a wider lower band (wide stances)</td>
+</tr>
+<tr>
+<td><code>first-body</code></td>
+<td>Every frame uses the feet found in frame 0</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="edge-cleanup">Edge Cleanup<a class="anchor" href="#edge-cleanup" title="Permanent link">#</a></h3>
+<p>Removes pieces of neighbouring frames, reddish halos along outlines and small loose specks.</p>
+<h3 id="tools-tools">Tools (<code>tools/</code>)<a class="anchor" href="#tools-tools" title="Permanent link">#</a></h3>
+<p>Run from the project folder:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Script</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>make_idle_sprites.py</code></td>
+<td>Idle sheets for hero outfits that only have an attack sheet</td>
+</tr>
+<tr>
+<td><code>make_hurt_sprites.py</code></td>
+<td>Hurt sheets for every hero idle sheet</td>
+</tr>
+<tr>
+<td><code>make_enemy_anims.py</code></td>
+<td>Idle and hurt animations for enemies with a drawn attack sheet</td>
+</tr>
+<tr>
+<td><code>align_idle.py</code></td>
+<td>Lines up the poses of an idle sheet</td>
+</tr>
+<tr>
+<td><code>seam_split.py</code></td>
+<td>Re-lays sheets whose poses overlap sideways</td>
+</tr>
+<tr>
+<td><code>make_ui_templates.py</code></td>
+<td>Turns the Base Camp and Create Character mockups into live UI templates</td>
+</tr>
+</tbody>
+</table></div>
+
+<h2 id="project-structure">Project Structure<a class="anchor" href="#project-structure" title="Permanent link">#</a></h2>
+<pre><code>Python_TurnBasedRPG/
+├── main.py                  # Entry point: window, settings, registers the game states
+├── assets.py                # Image/sprite loading, sounds and music, saved settings
+├── animation.py             # Sprite animation playback
+├── ui.py                    # Shared UI drawing: panels, buttons, bars, icons
+├── game_state/
+│   ├── game_manager.py      # Run data, floor progression, save/load, fullscreen
+│   ├── main_menu.py         # Title screen
+│   ├── character_creation_state.py
+│   ├── lobby_state.py       # Base Camp: roster, skills, equipment
+│   ├── map_state.py         # World map and floor fight list
+│   ├── combat_state.py      # Turn-based combat screen
+│   ├── reward_state.py      # Pre-boss rewards and skill choice
+│   ├── game_over_state.py
+│   ├── settings_state.py    # Volume and fullscreen options
+│   ├── credits_state.py     # Development team and music credit
+│   └── ui_layouts.py
+├── character/               # Entity and Player classes, hero sprites and inventory art
+├── mobs_boss/               # Enemy class and library, floor 1-5 sprites
+├── skills/                  # Skill class and skill library
+├── inventory_mechanics/     # Items and the weapon/gear library
+├── world/floor_map.py       # Fight order for each floor
+├── map/, menu_ui/, items/   # Backgrounds, UI art, item art
+├── sound_effects/           # Music and SFX files
+├── tools/                   # Sprite and UI generation scripts
+├── cache/                   # Processed sprite cache (safe to delete)
+├── save.json                # Character save (created on first run)
+└── settings.json            # Volume/fullscreen options (created on first change)
+</code></pre>
+
+<h2 id="tips--strategies">Tips &amp; Strategies<a class="anchor" href="#tips--strategies" title="Permanent link">#</a></h2>
+<ol>
+<li><strong>Watch enemy intents:</strong> put up Block when a big attack is coming, and attack when the enemy defends or buffs</li>
+<li><strong>Apply Vulnerable first:</strong> it adds 50% to everything that follows, and multi-hit skills benefit on every hit</li>
+<li><strong>Burn and Poison ignore Block:</strong> they're strong against enemies that turtle up</li>
+<li><strong>Fights are back to back:</strong> your HP carries over, so save healing skills for when you need them</li>
+<li><strong>Learn the cycle:</strong> elites and bosses repeat a fixed move order</li>
+<li><strong>Use the number keys 1–4</strong> for faster turns</li>
+<li><strong>Exit Fight resets the floor:</strong> only leave when you're happy to start that floor again</li>
+</ol>
+    <footer>Generated from WIKI.md. Edit that file and run <code>python tools/build_wiki_html.py</code> to update this page.</footer>
+  </div>
+</main>
+<script>
+(function () {
+  var links = [].slice.call(document.querySelectorAll('.side nav a'));
+  var heads = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); });
+  function spy() {
+    var y = window.scrollY + 120, cur = 0;
+    heads.forEach(function (h, i) { if (h && h.offsetTop <= y) cur = i; });
+    links.forEach(function (a, i) { a.classList.toggle('active', i === cur); });
+  }
+  window.addEventListener('scroll', spy, { passive: true }); spy();
+  links.forEach(function (a) { a.addEventListener('click', function () { document.body.classList.remove('open'); }); });
+  document.querySelector('.menu-btn').addEventListener('click', function () { document.body.classList.toggle('open'); });
+  var root = document.documentElement, btn = document.querySelector('.theme-btn');
+  try { var saved = localStorage.getItem('wiki-theme'); if (saved) root.setAttribute('data-theme', saved); } catch (e) {}
+  btn.addEventListener('click', function () {
+    var dark = getComputedStyle(root).getPropertyValue('--bg').trim() === '#0a1230';
+    var next = dark ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('wiki-theme', next); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

@@ -25,6 +25,8 @@ class MainMenuState(GameState):
         self.rects = [pygame.Rect(round(l * sx), round(t * sy), round((r - l) * sx), round((b - t) * sy))
                       for l, t, r, b in self.BUTTONS_IN_ART]
         self.focus = 0
+        self.settings_rect = pygame.Rect(w - 170, h - 66, 150, 46)
+        self.credits_rect = pygame.Rect(20, h - 66, 150, 46)
 
     def enter(self, **kwargs):
         self.focus = 0
@@ -36,6 +38,9 @@ class MainMenuState(GameState):
         # Returning players go to Base Camp; the first time, make a character
         gm.change_state("LobbyState" if gm.roster else "CharacterCreationState")
 
+    def open_settings(self):
+        self.game_manager.change_state("SettingsState", back="MainMenuState")
+
     def quit(self):
         self.game_manager.running = False
 
@@ -46,6 +51,12 @@ class MainMenuState(GameState):
                     if rect.collidepoint(event.pos):
                         self.focus = i
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.settings_rect.collidepoint(event.pos):
+                    self.open_settings()
+                    return
+                if self.credits_rect.collidepoint(event.pos):
+                    self.game_manager.change_state("CreditsState")
+                    return
                 for i, rect in enumerate(self.rects):
                     if rect.collidepoint(event.pos):
                         self.options[i][1]()
@@ -57,6 +68,12 @@ class MainMenuState(GameState):
                     self.focus = (self.focus + 1) % len(self.options)
                 elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                     self.options[self.focus][1]()
+                    return
+                elif event.key == pygame.K_c:
+                    self.game_manager.change_state("CreditsState")
+                    return
+                elif event.key == pygame.K_o:
+                    self.open_settings()
                     return
                 elif event.key == pygame.K_ESCAPE:
                     self.quit()
@@ -77,7 +94,10 @@ class MainMenuState(GameState):
         frame = rect.inflate(10 + 4 * pulse, 10 + 4 * pulse)
         pygame.draw.rect(screen, (255, 215, 120), frame, 3, border_radius=16)
 
-        ui.text_shadow(screen, "Mouse or Arrow keys + Enter", 15, ui.TEXT_DIM, False,
+        ui.pill_button(screen, self.credits_rect, "Credits", self.credits_rect.collidepoint(pygame.mouse.get_pos()),
+                       "star")
+        ui.gear_button(screen, self.settings_rect, hovered=self.settings_rect.collidepoint(pygame.mouse.get_pos()))
+        ui.text_shadow(screen, "Mouse or Arrow keys + Enter  ·  F11 Fullscreen", 15, ui.TEXT_DIM, False,
                        center=(screen.get_width() // 2, screen.get_height() - 24))
 
     def draw_fallback(self, screen):

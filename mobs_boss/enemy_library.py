@@ -43,7 +43,7 @@ TEMPLATES = {
         S("Frenzy", damage=3, hits=2),
         S("Cower", block=6),
     ]),
-    "Goblin Archer": dict(hp=28, anim=ARCHER_ANIM, height=240, moves=lambda: [
+    "Goblin Archer": dict(sheet=(F1 + "goblin2.png", 0, 5, 2), hp=28, anim=ARCHER_ANIM, height=240, moves=lambda: [
         S("Arrow", damage=6),
         S("Poison Arrow", damage=3, element="poison", effects={"poison": 3}),
         S("Aim", self_effects={"strength": 2}, block=3),

@@ -1,9 +1,14 @@
 """Asset loading helpers: paths, cached images/fonts/animations, and optional sounds."""
+import json
 import os
+import sys
 
 import pygame
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FROZEN = getattr(sys, "frozen", False)          # True when running as the packaged .exe
+BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))   # game files (art, sound)
+# Where the player's files go (saves, settings): next to the .exe, or the project folder when run from source
+APP_DIR = os.path.dirname(sys.executable) if FROZEN else BASE_DIR
 SOUND_DIR = os.path.join(BASE_DIR, "sounds")
 
 # Named sound effects: name -> (file, volume, max play time in ms or None).
@@ -26,10 +31,43 @@ MUSIC = {
     "final_boss": (SFX + "floor 5 final boss music/Burnt Spirit.mp3", 0.5),
 }
 _current_music = None
+_music_base = 1.0
+
+# Player options, saved between sessions in settings.json
+SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
+settings = {"music": 1.0, "sfx": 1.0, "fullscreen": False}
+
+
+def load_settings():
+    try:
+        with open(SETTINGS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return
+    for key in ("music", "sfx"):
+        if isinstance(data.get(key), (int, float)):
+            settings[key] = min(1.0, max(0.0, float(data[key])))
+    if isinstance(data.get("fullscreen"), bool):
+        settings["fullscreen"] = data["fullscreen"]
+
+
+def save_settings():
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=1)
+    except OSError as e:
+        print("Could not save settings:", e)
+
+
+def apply_music_volume():
+    if pygame.mixer.get_init():
+        pygame.mixer.music.set_volume(_music_base * settings["music"])
+
 
 _image_cache = {}
 _font_cache = {}
 _sound_cache = {}
+_sound_base = {}
 
 
 def path(*parts):
@@ -416,7 +454,7 @@ def _cleaned_sheet(rel_path, sheet, big_hole):
     cache/ and reused. It is redone automatically when the original art changes."""
     src = path(rel_path)
     cached = os.path.join(CACHE_DIR, rel_path.replace("/", "__").replace("\\", "__"))
-    if os.path.exists(cached) and os.path.getmtime(cached) >= os.path.getmtime(src):
+    if os.path.exists(cached) and (FROZEN or os.path.getmtime(cached) >= os.path.getmtime(src)):
         try:
             return pygame.image.load(cached).convert_alpha()
         except pygame.error:
@@ -467,7 +505,7 @@ def play_sound(name, volume=0.6):
             if os.path.exists(full):
                 try:
                     snd = pygame.mixer.Sound(full)
-                    snd.set_volume(volume)
+                    _sound_base[name] = volume
                 except pygame.error:
                     snd = None
                 break
@@ -475,6 +513,7 @@ def play_sound(name, volume=0.6):
     if name in SOUNDS and SOUNDS[name][2]:
         maxtime = SOUNDS[name][2]
     if _sound_cache[name]:
+        _sound_cache[name].set_volume(_sound_base[name] * settings["sfx"])
         channel = _sound_cache[name].play(maxtime=maxtime)
         if channel and maxtime:
             channel.fadeout(maxtime)
@@ -482,13 +521,14 @@ def play_sound(name, volume=0.6):
 
 def play_music(name, fade_ms=800):
     """Loops a track from MUSIC. Keeps playing if it's already on."""
-    global _current_music
+    global _current_music, _music_base
     if not pygame.mixer.get_init() or name not in MUSIC or _current_music == name:
         return
     file, volume, *start = MUSIC[name]
     try:
         pygame.mixer.music.load(path(file))
-        pygame.mixer.music.set_volume(volume)
+        _music_base = volume
+        pygame.mixer.music.set_volume(volume * settings["music"])
         pygame.mixer.music.play(-1, start=start[0] if start else 0.0, fade_ms=fade_ms)
         _current_music = name
     except pygame.error:

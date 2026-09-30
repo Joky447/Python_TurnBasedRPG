@@ -10,3 +10,11 @@ save.json
 
 # Generated sprite cache
 cache/
+
+# Player options
+settings.json
+
+# Packaged game
+dist/
+build/
+*.spec

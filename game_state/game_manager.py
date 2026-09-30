@@ -10,7 +10,7 @@ from world.floor_map import FloorMap
 
 MAX_FLOOR = 5
 MAX_ROSTER = 2
-SAVE_FILE = assets.path("save.json")      # roster, items and progress between sessions
+SAVE_FILE = os.path.join(assets.APP_DIR, "save.json")      # roster, items and progress between sessions
 
 # Testing: every floor pin on the world map is unlocked and clicking one jumps there.
 # Set to False to play normally (floors unlock one by one after each boss).
@@ -206,7 +206,20 @@ class GameManager:
         elif self.floor_map.next_is_boss():
             self.change_state("RewardState", mode="pre_boss", **self.give_pre_boss_rewards())
         else:
-            self.change_state("MapState")
+            self.start_next_fight()     # fights run back to back until the boss
+
+    def exit_fight(self):
+        """Leaves a fight from the combat screen. An unfinished floor starts over from its first fight."""
+        if self.rematch:
+            self.end_rematch(False)
+            return
+        self.floor_map = FloorMap(self.current_floor)
+        if self.player:
+            self.player.reset_combat()
+            self.player.heal(self.player.max_hp)
+            self.player.events.clear()
+        self.notice = (f"Left the fight: Floor {self.current_floor} progress reset", 2500)
+        self.change_state("MapState")
 
     def reward_claimed(self, mode="pre_boss"):
         """Pre-boss reward: straight into the boss fight. Post-boss skill reward: on to the next floor's map."""
@@ -214,6 +227,11 @@ class GameManager:
             self.change_state("MapState")
         else:
             self.start_next_fight()
+
+    def toggle_fullscreen(self):
+        pygame.display.toggle_fullscreen()
+        assets.settings["fullscreen"] = not assets.settings["fullscreen"]
+        assets.save_settings()
 
     # --- States -------------------------------------------------------------
     def add_state(self, state_name, state_obj):
@@ -235,6 +253,9 @@ class GameManager:
             for event in events:
                 if event.type == pygame.QUIT:
                     self.running = False
+                elif event.type == pygame.KEYDOWN and (event.key == pygame.K_F11 or (
+                        event.key == pygame.K_RETURN and event.mod & pygame.KMOD_ALT)):
+                    self.toggle_fullscreen()
 
             if self.current_state:
                 self.current_state.handle_events(events)

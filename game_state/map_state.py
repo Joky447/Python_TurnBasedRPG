@@ -32,6 +32,7 @@ class MapState(GameState):
         self.open_btn = pygame.Rect(w - 250, h - 76, 230, 56)
         self.fight_btn = pygame.Rect(0, 0, 260, 54)
         self.camp_btn = pygame.Rect(w - 450, h - 76, 190, 56)
+        self.settings_btn = pygame.Rect(20, h - 66, 150, 46)
         self.confirm_camp = False       # waiting for a second click when leaving would lose progress
 
     def enter(self, **kwargs):
@@ -163,6 +164,9 @@ class MapState(GameState):
                         return
                 continue
             if not self.panel_open:
+                if click and self.settings_btn.collidepoint(event.pos):
+                    gm.change_state("SettingsState", back="MapState")
+                    return
                 if (click and self.camp_btn.collidepoint(event.pos)) or                         (event.type == pygame.KEYDOWN and event.key == pygame.K_b):
                     self.go_to_camp()
                     return
@@ -242,11 +246,15 @@ class MapState(GameState):
             enc = gm.floor_map.current
             if gm.all_cleared:
                 hovered_pin = False
-                label = "All floors cleared! Pick any floor"
+                label = "Free Play: pick a floor"
             else:
                 label = f"Next: {enc.title}  [Enter]" if enc else "Floor cleared"
+            size = 19
+            while assets.font(size, True).size(label)[0] > self.open_btn.width - 70 and size > 12:
+                size -= 1       # keep the text inside the banner's gem ends
             ui.button(screen, self.open_btn, label, self.open_btn.collidepoint(mouse) or hovered_pin,
-                      color=(50, 90, 60), hover_color=(70, 130, 80), size=19, alpha=GLASS)
+                      color=(50, 90, 60), hover_color=(70, 130, 80), size=size, alpha=GLASS)
+            ui.gear_button(screen, self.settings_btn, hovered=self.settings_btn.collidepoint(mouse))
             camp_label = "Leave run?  [B]" if self.confirm_camp else "Base Camp  [B]"
             ui.button(screen, self.camp_btn, camp_label, self.camp_btn.collidepoint(mouse),
                       color=(110, 40, 40) if self.confirm_camp else None, hover_color=(150, 50, 50) if self.confirm_camp else None,
