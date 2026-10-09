@@ -692,11 +692,15 @@ class CombatState(GameState):
         ui.text(screen, "[E / Space]", 13, ui.TEXT_DIM, center=(self.end_turn_rect.centerx, self.end_turn_rect.bottom + 14))
 
     def draw_log(self, screen):
-        rect = pygame.Rect(16, 16, 360, 26 + 22 * len(self.log))
+        # Only show as many lines as fit above the hero's name so they never overlap
+        name_top = self.ground_y - 330 - assets.font(22, True).get_linesize() - 8
+        max_lines = max(1, (name_top - 16 - 26) // 22)
+        log = self.log[-max_lines:]
+        rect = pygame.Rect(16, 16, 360, 26 + 22 * len(log))
         ui.panel(screen, rect, (10, 10, 16), None, 185, 8)
         y = rect.y + 12
-        for i, (msg, color) in enumerate(self.log):
-            faded = tuple(int(c * (0.5 + 0.5 * (i + 1) / len(self.log))) for c in color)
+        for i, (msg, color) in enumerate(log):
+            faded = tuple(int(c * (0.5 + 0.5 * (i + 1) / len(log))) for c in color)
             ui.text(screen, msg, 16, faded, topleft=(rect.x + 12, y))
             y += 22
         gm = self.game_manager
